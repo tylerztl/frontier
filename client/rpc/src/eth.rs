@@ -32,6 +32,9 @@ use sp_transaction_pool::{TransactionPool, InPoolTransaction};
 use sc_client_api::backend::{StorageProvider, Backend, StateBackend, AuxStore};
 use sha3::{Keccak256, Digest};
 use sp_blockchain::{Error as BlockChainError, HeaderMetadata, HeaderBackend};
+use sp_storage::StorageKey;
+use codec::Decode;
+use sp_io::hashing::{twox_128, blake2_128};
 use sc_network::{NetworkService, ExHashT};
 use fc_rpc_core::{
 	EthApi as EthApiT, NetApi as NetApiT, Web3Api as Web3ApiT, EthFilterApi as EthFilterApiT
@@ -263,6 +266,15 @@ fn logs_build(
 	ret
 }
 
+fn storage_prefix_build(module: &[u8], storage: &[u8]) -> Vec<u8> {
+	[twox_128(module), twox_128(storage)].concat().to_vec()
+}
+
+fn blake2_128_extend(bytes: &[u8]) -> Vec<u8> {
+	let mut ext: Vec<u8> = blake2_128(bytes).to_vec();
+	ext.extend_from_slice(bytes);
+	ext
+
 impl<B, C, P, CT, BE, H: ExHashT> EthApi<B, C, P, CT, BE, H> where
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE> + AuxStore,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
@@ -356,6 +368,68 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApi<B, C, P, CT, BE, H> where
 		}
 		Ok(None)
 	}
+
+	fn current_block(&self, id: &BlockId<B>) -> Option<ethereum::Block> {
+		self.query_storage::<ethereum::Block>(
+			id,
+			&StorageKey(
+				storage_prefix_build(b"Ethereum", b"CurrentBlock")
+			)
+		)
+	}
+
+	fn current_statuses(&self, id: &BlockId<B>) -> Option<Vec<TransactionStatus>> {
+		self.query_storage::<Vec<TransactionStatus>>(
+			id,
+			&StorageKey(
+				storage_prefix_build(b"Ethereum", b"CurrentTransactionStatuses")
+			)
+		)
+	}
+
+	fn current_receipts(&self, id: &BlockId<B>) -> Option<Vec<ethereum::Receipt>> {
+		self.query_storage::<Vec<ethereum::Receipt>>(
+			id,
+			&StorageKey(
+				storage_prefix_build(b"Ethereum", b"CurrentReceipts")
+			)
+		)
+	}
+
+	fn account_codes(&self, id: &BlockId<B>, address: H160) -> Option<Vec<u8>> {
+		let mut key: Vec<u8> = storage_prefix_build(b"EVM", b"AccountCodes");
+		key.extend(blake2_128_extend(address.as_bytes()));
+		self.query_storage::<Vec<u8>>(
+			id,
+			&StorageKey(key)
+		)
+	}
+
+	fn account_storages(&self, id: &BlockId<B>, address: H160, index: U256) -> Option<H256> {
+		let tmp: &mut [u8; 32] = &mut [0; 32];
+		index.to_little_endian(tmp);
+
+		let mut key: Vec<u8> = storage_prefix_build(b"EVM", b"AccountStorages");
+		key.extend(blake2_128_extend(address.as_bytes()));
+		key.extend(blake2_128_extend(tmp));
+
+		self.query_storage::<H256>(
+			id,
+			&StorageKey(key)
+		)
+	}
+
+	fn query_storage<T: Decode>(&self, id: &BlockId<B>, key: &StorageKey) -> Option<T> {
+		if let Ok(Some(data)) = self.client.storage(
+			id,
+			key
+		) {
+			if let Ok(result) = Decode::decode(&mut &data.0[..]) {
+				return Some(result);
+			}
+		}
+		None
+	}
 }
 
 impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
@@ -398,14 +472,14 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 	}
 
 	fn author(&self) -> Result<H160> {
-		let hash = self.client.info().best_hash;
-
-		Ok(
-			self.client
-			.runtime_api()
-			.author(&BlockId::Hash(hash))
-			.map_err(|err| internal_err(format!("fetch runtime chain id failed: {:?}", err)))?.into()
-		)
+		let block: Option<ethereum::Block> = self.current_block(&BlockId::Hash(
+			self.client.info().best_hash
+		));
+		return if let Some(block) = block {
+			Ok(block.header.beneficiary)
+		} else {
+			Err(internal_err("Failed to retrieve block."))
+		}
 	}
 
 	fn is_mining(&self) -> Result<bool> {
@@ -455,16 +529,13 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 	}
 
 	fn storage_at(&self, address: H160, index: U256, number: Option<BlockNumber>) -> Result<H256> {
+		let mut out: H256 = H256::default();
 		if let Ok(Some(id)) = self.native_block_id(number) {
-			return Ok(
-				self.client
-					.runtime_api()
-					.storage_at(&id, address, index)
-					.map_err(|err| internal_err(format!("fetch runtime chain id failed: {:?}", err)))?
-					.into(),
-			);
+			if let Some(account_storages) = self.account_storages(&id, address, index) {
+				out = account_storages;
+			}
 		}
-		Ok(H256::default())
+		Ok(out)
 	}
 
 	fn block_by_hash(&self, hash: H256, full: bool) -> Result<Option<RichBlock>> {
@@ -475,10 +546,8 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 			_ => return Ok(None),
 		};
 
-		let block = self.client.runtime_api().current_block(&id)
-			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
-		let statuses = self.client.runtime_api().current_transaction_statuses(&id)
-			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
+		let block: Option<ethereum::Block> = self.current_block(&id);
+		let statuses: Option<Vec<TransactionStatus>> = self.current_statuses(&id);
 
 		match (block, statuses) {
 			(Some(block), Some(statuses)) => {
@@ -501,10 +570,8 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 			None => return Ok(None),
 		};
 
-		let block = self.client.runtime_api().current_block(&id)
-			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
-		let statuses = self.client.runtime_api().current_transaction_statuses(&id)
-			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
+		let block: Option<ethereum::Block> = self.current_block(&id);
+		let statuses: Option<Vec<TransactionStatus>> = self.current_statuses(&id);
 
 		match (block, statuses) {
 			(Some(block), Some(statuses)) => {
@@ -569,9 +636,8 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 			_ => return Ok(None),
 		};
 
-		let block = self.client.runtime_api()
-			.current_block(&id)
-			.map_err(|err| internal_err(format!("fetch runtime account basic failed: {:?}", err)))?;
+
+		let block: Option<ethereum::Block> = self.current_block(&id);
 
 		match block {
 			Some(block) => Ok(Some(U256::from(block.transactions.len()))),
@@ -585,9 +651,7 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 			None => return Ok(None),
 		};
 
-		let block = self.client.runtime_api()
-			.current_block(&id)
-			.map_err(|err| internal_err(format!("fetch runtime account basic failed: {:?}", err)))?;
+		let block: Option<ethereum::Block> = self.current_block(&id);
 
 		match block {
 			Some(block) => Ok(Some(U256::from(block.transactions.len()))),
@@ -604,16 +668,13 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 	}
 
 	fn code_at(&self, address: H160, number: Option<BlockNumber>) -> Result<Bytes> {
+		let mut out: Bytes = Bytes(Vec::new());
 		if let Ok(Some(id)) = self.native_block_id(number) {
-			return Ok(
-				self.client
-					.runtime_api()
-					.account_code_at(&id, address)
-					.map_err(|err| internal_err(format!("fetch runtime chain id failed: {:?}", err)))?
-					.into(),
-			);
+			if let Some(account_codes) = self.account_codes(&id,address) {
+				out = Bytes(account_codes);
+			}
 		}
-		Ok(Bytes(vec![]))
+		Ok(out)
 	}
 
 	fn send_transaction(&self, request: TransactionRequest) -> BoxFuture<H256> {
@@ -936,10 +997,8 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 			_ => return Ok(None),
 		};
 
-		let block = self.client.runtime_api().current_block(&id)
-			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
-		let statuses = self.client.runtime_api().current_transaction_statuses(&id)
-			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
+		let block: Option<ethereum::Block> = self.current_block(&id);
+		let statuses: Option<Vec<TransactionStatus>> = self.current_statuses(&id);
 
 		match (block, statuses) {
 			(Some(block), Some(statuses)) => {
@@ -966,10 +1025,8 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 		};
 		let index = index.value();
 
-		let block = self.client.runtime_api().current_block(&id)
-			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
-		let statuses = self.client.runtime_api().current_transaction_statuses(&id)
-			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
+		let block: Option<ethereum::Block> = self.current_block(&id);
+		let statuses: Option<Vec<TransactionStatus>> = self.current_statuses(&id);
 
 		match (block, statuses) {
 			(Some(block), Some(statuses)) => {
@@ -994,10 +1051,8 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 		};
 		let index = index.value();
 
-		let block = self.client.runtime_api().current_block(&id)
-			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
-		let statuses = self.client.runtime_api().current_transaction_statuses(&id)
-			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
+		let block: Option<ethereum::Block> = self.current_block(&id);
+		let statuses: Option<Vec<TransactionStatus>> = self.current_statuses(&id);
 
 		match (block, statuses) {
 			(Some(block), Some(statuses)) => {
@@ -1025,12 +1080,9 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 			_ => return Ok(None),
 		};
 
-		let block = self.client.runtime_api().current_block(&id)
-			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
-		let receipts = self.client.runtime_api().current_receipts(&id)
-			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
-		let statuses = self.client.runtime_api().current_transaction_statuses(&id)
-			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
+		let block: Option<ethereum::Block> = self.current_block(&id);
+		let statuses: Option<Vec<TransactionStatus>> = self.current_statuses(&id);
+		let receipts: Option<Vec<ethereum::Receipt>> = self.current_receipts(&id);
 
 		match (block, statuses, receipts) {
 			(Some(block), Some(statuses), Some(receipts)) => {
@@ -1113,9 +1165,8 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 				_ => return Ok(Vec::new()),
 			};
 
-			let (block, _, statuses) = self.client.runtime_api()
-				.current_all(&id)
-				.map_err(|err| internal_err(format!("fetch runtime account basic failed: {:?}", err)))?;
+			let block: Option<ethereum::Block> = self.current_block(&id);
+			let statuses: Option<Vec<TransactionStatus>> = self.current_statuses(&id);
 
 			if let (Some(block), Some(statuses)) = (block, statuses) {
 				blocks_and_statuses.push((block, statuses));
@@ -1141,9 +1192,8 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 			while current_number >= from_number {
 				let id = BlockId::Number(current_number);
 
-				let (block, _, statuses) = self.client.runtime_api()
-					.current_all(&id)
-					.map_err(|err| internal_err(format!("fetch runtime account basic failed: {:?}", err)))?;
+				let block: Option<ethereum::Block> = self.current_block(&id);
+				let statuses: Option<Vec<TransactionStatus>> = self.current_statuses(&id);
 
 				if let (Some(block), Some(statuses)) = (block, statuses) {
 					blocks_and_statuses.push((block, statuses));
@@ -1216,8 +1266,22 @@ impl<B: BlockT, BE, C, H: ExHashT> NetApiT for NetApi<B, BE, C, H> where
 
 	fn version(&self) -> Result<String> {
 		let hash = self.client.info().best_hash;
-		Ok(self.client.runtime_api().chain_id(&BlockId::Hash(hash))
-			.map_err(|_| internal_err("fetch runtime chain id failed"))?.to_string())
+		let mut chain_id: Option<u64> = None;
+
+		if let Ok(Some(data)) = self.client.storage(
+			&BlockId::Hash(hash),
+			&StorageKey(
+				storage_prefix_build(b"EVM", b"ChainId")
+			)
+		) {
+			chain_id = Decode::decode(&mut &data.0[..]).unwrap_or_else(|_| None);
+		}
+
+		return if let Some(chain_id) = chain_id {
+			Ok(chain_id.to_string())
+		} else {
+			Err(internal_err("Failed to retrieve chain id."))
+		}
 	}
 }
 
