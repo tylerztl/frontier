@@ -25,7 +25,7 @@ use ethereum_types::{H160, H256, H64, U256, U64, H512};
 use jsonrpc_core::{BoxFuture, Result, futures::future::{self, Future}};
 use futures::future::TryFutureExt;
 use sp_runtime::{
-	traits::{Block as BlockT, UniqueSaturatedInto, Zero, One, Saturating, BlakeTwo256},
+	traits::{Block as BlockT, Header as _, UniqueSaturatedInto, Zero, One, Saturating, BlakeTwo256},
 	transaction_validity::TransactionSource
 };
 use sp_api::{ProvideRuntimeApi, BlockId, Core, HeaderT};
@@ -304,6 +304,23 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApi<B, C, P, CT, BE, H> where
 		Ok(None)
 	}
 
+	fn headers(&self, id: &BlockId<B>) -> Result<(u64,u64)> {
+		match self.client.header(id.clone())
+			.map_err(|_| internal_err(format!("failed to retrieve header at: {:#?}", id)))?
+		{
+			Some(h) => {
+				let best_number: u64 = UniqueSaturatedInto::<u64>::unique_saturated_into(
+					self.client.info().best_number
+				);
+				let header_number: u64 = UniqueSaturatedInto::<u64>::unique_saturated_into(
+					*h.number()
+				);
+				Ok((best_number, header_number))
+			}
+			_ => Err(internal_err(format!("failed to retrieve header at: {:#?}", id)))
+		}
+	}
+
 	fn current_block(&self, id: &BlockId<B>) -> Option<ethereum::Block> {
 		self.query_storage::<ethereum::Block>(
 			id,
@@ -480,6 +497,11 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 			Some(hash) => hash,
 			_ => return Ok(None),
 		};
+		if let Ok((best_number, header_number)) = self.headers(&id) {
+			if header_number > best_number {
+				return Ok(None);
+			}
+		}
 
 		let block: Option<ethereum::Block> = self.current_block(&id);
 		let statuses: Option<Vec<TransactionStatus>> = self.current_statuses(&id);
@@ -571,6 +593,11 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 			_ => return Ok(None),
 		};
 
+		if let Ok((best_number, header_number)) = self.headers(&id) {
+			if header_number > best_number {
+				return Ok(None);
+			}
+		}
 
 		let block: Option<ethereum::Block> = self.current_block(&id);
 
@@ -890,6 +917,11 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 			Some(hash) => hash,
 			_ => return Ok(None),
 		};
+		if let Ok((best_number, header_number)) = self.headers(&id) {
+			if header_number > best_number {
+				return Ok(None);
+			}
+		}
 
 		let block: Option<ethereum::Block> = self.current_block(&id);
 		let statuses: Option<Vec<TransactionStatus>> = self.current_statuses(&id);
@@ -917,6 +949,11 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 			Some(hash) => hash,
 			_ => return Ok(None),
 		};
+		if let Ok((best_number, header_number)) = self.headers(&id) {
+			if header_number > best_number {
+				return Ok(None);
+			}
+		}
 		let index = index.value();
 
 		let block: Option<ethereum::Block> = self.current_block(&id);
@@ -973,6 +1010,11 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 			Some(hash) => hash,
 			_ => return Ok(None),
 		};
+		if let Ok((best_number, header_number)) = self.headers(&id) {
+			if header_number > best_number {
+				return Ok(None);
+			}
+		}
 
 		let block: Option<ethereum::Block> = self.current_block(&id);
 		let statuses: Option<Vec<TransactionStatus>> = self.current_statuses(&id);
@@ -1061,6 +1103,11 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 				Some(hash) => hash,
 				_ => return Ok(Vec::new()),
 			};
+			if let Ok((best_number, header_number)) = self.headers(&id) {
+				if header_number > best_number {
+					return Ok(Vec::new());
+				}
+			}
 
 			let block: Option<ethereum::Block> = self.current_block(&id);
 			let statuses: Option<Vec<TransactionStatus>> = self.current_statuses(&id);
