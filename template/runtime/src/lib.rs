@@ -491,7 +491,6 @@ impl_runtime_apis! {
 			EVM::account_storages(address, H256::from_slice(&tmp[..]))
 		}
 
-
 		fn call(
 			from: H160,
 			to: H160,
@@ -566,7 +565,7 @@ impl_runtime_apis! {
 			Option<pallet_ethereum::Block>,
 			Option<Vec<pallet_ethereum::Receipt>>,
 			Option<Vec<TransactionStatus>>
-			) {
+		) {
 			(
 				Ethereum::current_block(),
 				Ethereum::current_receipts(),
