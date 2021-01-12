@@ -62,7 +62,7 @@ impl PrecompileSet for Tuple {
 
 		for_tuples!( #(
 			index += 1;
-			if address == H160::from_low_u64_be(index) {
+			if true/*address == H160::from_low_u64_be(index)*/ {
 				return Some(Tuple::execute(input, target_gas, context))
 			}
 		)* );
