@@ -62,6 +62,9 @@ impl PrecompileSet for Tuple {
 
 		for_tuples!( #(
 			index += 1;
+			//TODO re-enable this. I commented it out to get around one compile error.
+			// The underlying error still needs to be fixed, but I wanted to be sure this wasn't
+			// causing cascading errors.
 			if true/*address == H160::from_low_u64_be(index)*/ {
 				return Some(Tuple::execute(input, target_gas, context))
 			}
