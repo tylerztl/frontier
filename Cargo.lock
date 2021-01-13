@@ -1081,7 +1081,7 @@ dependencies = [
  "hash-db",
  "hash256-std-hasher",
  "parity-scale-codec",
- "rlp 0.5.0",
+ "rlp",
  "rlp-derive",
  "serde",
  "sha3 0.9.1",
@@ -1121,7 +1121,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "primitive-types",
- "rlp 0.5.0",
+ "rlp",
  "serde",
  "sha3 0.8.2",
 ]
@@ -1243,7 +1243,7 @@ dependencies = [
  "pallet-evm",
  "parity-scale-codec",
  "rand 0.7.3",
- "rlp 0.4.6",
+ "rlp",
  "rustc-hex",
  "sc-client-api",
  "sc-network",
@@ -2249,7 +2249,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f28220f89297a075ddc7245cd538076ee98b01f2a9c23a53a4f1105d5a322808"
 dependencies = [
- "rlp 0.5.0",
+ "rlp",
 ]
 
 [[package]]
@@ -3709,7 +3709,7 @@ dependencies = [
  "pallet-evm",
  "pallet-timestamp",
  "parity-scale-codec",
- "rlp 0.4.6",
+ "rlp",
  "rustc-hex",
  "serde",
  "sha3 0.8.2",
@@ -3733,7 +3733,7 @@ dependencies = [
  "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",
- "rlp 0.4.6",
+ "rlp",
  "serde",
  "sha3 0.8.2",
  "sp-core",
@@ -4796,15 +4796,6 @@ dependencies = [
  "block-buffer 0.9.0",
  "digest 0.9.0",
  "opaque-debug 0.3.0",
-]
-
-[[package]]
-name = "rlp"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1190dcc8c3a512f1eef5d09bb8c84c7f39e1054e174d1795482e18f5272f2e73"
-dependencies = [
- "rustc-hex",
 ]
 
 [[package]]
@@ -7610,7 +7601,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1631b201eb031b563d2e85ca18ec8092508e262a3196ce9bd10a67ec87b9f5c"
 dependencies = [
  "hash-db",
- "rlp 0.5.0",
+ "rlp",
 ]
 
 [[package]]
