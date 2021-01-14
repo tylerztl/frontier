@@ -10,7 +10,7 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use sp_std::{prelude::*, marker::PhantomData};
 use codec::{Encode, Decode};
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata, U256, H160};
+use sp_core::{crypto::KeyTypeId, OpaqueMetadata, U256, H160, H256};
 use sp_runtime::{
 	ApplyExtrinsicResult, generic, create_runtime_str, impl_opaque_keys, MultiSignature,
 	transaction_validity::{TransactionValidity, TransactionSource},
