@@ -47,6 +47,7 @@ sc-client-api = { git = "https://github.com/paritytech/substrate.git", branch = 
 sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
 sp-block-builder = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sc-transaction-graph = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 fc-consensus = { path = "../../client/consensus" }
 fp-consensus = { path = "../../primitives/consensus" }
