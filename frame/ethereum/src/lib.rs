@@ -375,6 +375,11 @@ impl<T: Config> Module<T> {
 		CurrentReceipts::get()
 	}
 
+	/// Get receipts by number.
+	pub fn current_pending() -> Vec<(ethereum::Transaction, TransactionStatus, ethereum::Receipt)> {
+		Pending::get()
+	}
+
 	/// Execute an Ethereum transaction.
 	pub fn execute(
 		from: H160,
