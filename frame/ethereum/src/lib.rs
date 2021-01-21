@@ -318,15 +318,32 @@ impl<T: Config> Module<T> {
 			mix_hash: H256::default(),
 			nonce: H64::default(),
 		};
+		let info_partial_header = partial_header.clone();
 		let mut block = ethereum::Block::new(partial_header, transactions.clone(), ommers);
 		block.header.state_root = T::StateRoot::get();
 
 		let mut transaction_hashes = Vec::new();
+		frame_support::debug::RuntimeLogger::init();
+		frame_support::debug::info!(target: "ethereum", "Digesting {:?}", block.header.hash());
+		frame_support::debug::info!(target: "ethereum", "parent_hash: {:?}", info_partial_header.parent_hash);
+		frame_support::debug::info!(target: "ethereum", "beneficiary: {:?}", info_partial_header.beneficiary);
+		frame_support::debug::info!(target: "ethereum", "state_root: {:?}", info_partial_header.state_root);
+		frame_support::debug::info!(target: "ethereum", "logs_bloom: {:?}", info_partial_header.logs_bloom);
+		frame_support::debug::info!(target: "ethereum", "difficulty: {:?}", info_partial_header.difficulty);
+		frame_support::debug::info!(target: "ethereum", "number: {:?}", info_partial_header.number);
+		frame_support::debug::info!(target: "ethereum", "gas_limit: {:?}", info_partial_header.gas_limit);
+		frame_support::debug::info!(target: "ethereum", "gas_used: {:?}", info_partial_header.gas_used);
+		frame_support::debug::info!(target: "ethereum", "timestamp: {:?}", info_partial_header.timestamp);
+		frame_support::debug::info!(target: "ethereum", "mix_hash: {:?}", info_partial_header.mix_hash);
+		frame_support::debug::info!(target: "ethereum", "nonce: {:?}", info_partial_header.nonce);
+		frame_support::debug::info!(target: "ethereum", "state_root: {:?}", block.header.state_root);
 
 		for t in &transactions {
 			let transaction_hash = H256::from_slice(
 				Keccak256::digest(&rlp::encode(t)).as_slice()
 			);
+			frame_support::debug::info!(target: "ethereum", "Digesting[{}] {:?}", block.header.hash(), t);
+			frame_support::debug::info!(target: "ethereum", "Digesting[{}]: tx hashes: {:?}", block.header.hash(), transaction_hash);
 			transaction_hashes.push(transaction_hash);
 		}
 
@@ -334,6 +351,7 @@ impl<T: Config> Module<T> {
 		CurrentReceipts::put(receipts.clone());
 		CurrentTransactionStatuses::put(statuses.clone());
 
+		let tx_len = transaction_hashes.len();
 		let digest = DigestItem::<T::Hash>::Consensus(
 			FRONTIER_ENGINE_ID,
 			ConsensusLog::EndBlock {
@@ -341,6 +359,7 @@ impl<T: Config> Module<T> {
 				transaction_hashes,
 			}.encode(),
 		);
+		frame_support::debug::info!(target: "ethereum", "digest block hash: {:?} - tx hashes: {}: {:?}", block.header.hash(), tx_len, digest);
 		frame_system::Module::<T>::deposit_log(digest.into());
 	}
 
