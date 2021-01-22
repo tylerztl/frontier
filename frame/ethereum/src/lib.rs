@@ -319,7 +319,11 @@ impl<T: Config> Module<T> {
 			nonce: H64::default(),
 		};
 		let mut block = ethereum::Block::new(partial_header, transactions.clone(), ommers);
-		block.header.state_root = T::StateRoot::get();
+		
+		// Disabling this will NOT inject substrate's intermediate state root into the Ethereum
+		// block. This breaks the 1:1 mapping between substrate blocks and ethereum blocks.
+		// That's okay for now because we still support the 1:1 mapping in the aux store.
+		// block.header.state_root = T::StateRoot::get();
 
 		let mut transaction_hashes = Vec::new();
 
