@@ -43,12 +43,12 @@ pub struct Modexp;
 //       see: https://eips.ethereum.org/EIPS/eip-198
 
 impl LinearCostPrecompile for Modexp {
-	const BASE: usize = 15;
-	const WORD: usize = 3;
+	const BASE: u64 = 15;
+	const WORD: u64 = 3;
 
 	fn execute(
 		input: &[u8],
-		_: usize,
+		_: u64,
 	) -> core::result::Result<(ExitSucceed, Vec<u8>), ExitError> {
 		if input.len() < 96 {
 			return Err(ExitError::Other("input must contain at least 96 bytes".into()));

@@ -68,7 +68,7 @@ impl<T: Config> Runner<T> {
 		let mut backend = Backend::<T>::new(&vicinity);
 		let mut executor = StackExecutor::new_with_precompile(
 			&backend,
-			gas_limit as usize,
+			gas_limit as u64,
 			config,
 			T::Precompiles::execute,
 		);
@@ -137,7 +137,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 				target,
 				value,
 				input,
-				gas_limit as usize,
+				gas_limit as u64,
 			),
 		)
 	}
@@ -166,7 +166,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 					source,
 					value,
 					init,
-					gas_limit as usize,
+					gas_limit as u64,
 				), address)
 			},
 		)
@@ -199,7 +199,7 @@ impl<T: Config> RunnerT<T> for Runner<T> {
 					value,
 					init,
 					salt,
-					gas_limit as usize,
+					gas_limit as u64,
 				), address)
 			},
 		)

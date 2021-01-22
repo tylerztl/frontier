@@ -26,7 +26,7 @@
 use frame_support::{
 	decl_module, decl_storage, decl_error, decl_event,
 	traits::Get, traits::FindAuthor, weights::Weight,
-	dispatch::DispatchResultWithPostInfo,
+	dispatch::DispatchResultWithPostInfo, debug
 };
 use sp_std::prelude::*;
 use frame_system::ensure_none;
@@ -205,6 +205,10 @@ decl_module! {
 		}
 
 		fn on_finalize(n: T::BlockNumber) {
+			debug::native::debug!(
+				target: "tgm",
+				"----> on_finalize {:?}", n
+			);
 			<Module<T>>::store_block();
 		}
 
@@ -334,6 +338,11 @@ impl<T: Config> Module<T> {
 		CurrentReceipts::put(receipts.clone());
 		CurrentTransactionStatuses::put(statuses.clone());
 
+		debug::native::debug!(
+			target: "tgm",
+			"----> pending in pallet {:?}", Pending::get()
+		);
+
 		let digest = DigestItem::<T::Hash>::Consensus(
 			FRONTIER_ENGINE_ID,
 			ConsensusLog::EndBlock {
@@ -379,6 +388,11 @@ impl<T: Config> Module<T> {
 	/// Get receipts by number.
 	pub fn current_receipts() -> Option<Vec<ethereum::Receipt>> {
 		CurrentReceipts::get()
+	}
+
+	/// Get receipts by number.
+	pub fn current_pending() -> Vec<(ethereum::Transaction, TransactionStatus, ethereum::Receipt)> {
+		Pending::get()
 	}
 
 	/// Execute an Ethereum transaction.
