@@ -205,10 +205,6 @@ decl_module! {
 		}
 
 		fn on_finalize(n: T::BlockNumber) {
-			debug::native::debug!(
-				target: "tgm",
-				"----> on_finalize {:?}", n
-			);
 			<Module<T>>::store_block();
 		}
 
@@ -337,11 +333,6 @@ impl<T: Config> Module<T> {
 		CurrentBlock::put(block.clone());
 		CurrentReceipts::put(receipts.clone());
 		CurrentTransactionStatuses::put(statuses.clone());
-
-		debug::native::debug!(
-			target: "tgm",
-			"----> pending in pallet {:?}", Pending::get()
-		);
 
 		let digest = DigestItem::<T::Hash>::Consensus(
 			FRONTIER_ENGINE_ID,
