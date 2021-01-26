@@ -2,7 +2,7 @@
 
 use std::{sync::Arc, fmt};
 
-use fc_rpc_core::types::PendingTransactions;
+use fc_rpc_core::types::{PendingTransactions, FilterPool};
 use sc_consensus_manual_seal::rpc::{ManualSeal, ManualSealApi};
 use frontier_template_runtime::{Hash, AccountId, Index, opaque::Block, Balance};
 use sp_api::ProvideRuntimeApi;
@@ -50,6 +50,8 @@ pub struct FullDeps<C, P, A: ChainApi> {
 	pub network: Arc<NetworkService<Block, Hash>>,
 	/// Ethereum pending transactions.
 	pub pending_transactions: PendingTransactions,
+	/// EthFilterApi pool.
+	pub filter_pool: Option<FilterPool>,
 	/// Manual seal command sink
 	pub command_sink: Option<futures::channel::mpsc::Sender<sc_consensus_manual_seal::rpc::EngineCommand<Hash>>>,
 }
@@ -76,8 +78,9 @@ pub fn create_full<C, P, BE, A>(
 	use substrate_frame_rpc_system::{FullSystem, SystemApi};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
 	use fc_rpc::{
-		EthApi, EthApiServer, NetApi, NetApiServer, EthPubSubApi, EthPubSubApiServer,
-		Web3Api, Web3ApiServer, EthDevSigner, EthSigner, HexEncodedIdProvider,
+		EthApi, EthApiServer, EthFilterApi, EthFilterApiServer, NetApi, NetApiServer,
+		EthPubSubApi, EthPubSubApiServer, Web3Api, Web3ApiServer, EthDevSigner, EthSigner,
+		HexEncodedIdProvider,
 	};
 
 	let mut io = jsonrpc_core::IoHandler::default();
@@ -89,6 +92,7 @@ pub fn create_full<C, P, BE, A>(
 		is_authority,
 		network,
 		pending_transactions,
+		filter_pool,
 		command_sink,
 		enable_dev_signer,
 	} = deps;
@@ -116,6 +120,16 @@ pub fn create_full<C, P, BE, A>(
 			is_authority,
 		))
 	);
+
+	if let Some(filter_pool) = filter_pool {
+		io.extend_with(
+			EthFilterApiServer::to_delegate(EthFilterApi::new(
+				client.clone(),
+				filter_pool.clone(),
+				500 as usize, // max stored filters
+			))
+		);
+	}
 
 	io.extend_with(
 		NetApiServer::to_delegate(NetApi::new(
