@@ -1519,6 +1519,10 @@ impl<B, C> EthFilterApiT for EthFilterApi<B, C> where
 								self.client.info().best_number
 							);
 
+						if current_number > self.client.info().best_number {
+							current_number = self.client.info().best_number;
+						}
+	
 						// The from clause is the max(last_poll, filter_from).
 						let last_poll = pool_item
 							.last_poll
@@ -1598,6 +1602,10 @@ impl<B, C> EthFilterApiT for EthFilterApi<B, C> where
 							.unwrap_or(
 								self.client.info().best_number
 							);
+
+						if current_number > self.client.info().best_number {
+							current_number = self.client.info().best_number;
+						}
 
 						let from_number = filter.from_block.clone()
 							.and_then(|v| v.to_min_block_num())
