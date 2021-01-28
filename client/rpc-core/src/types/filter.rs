@@ -272,8 +272,16 @@ impl FilteredParams {
 						}
 					}
 				},
-				VariadicValue::Multiple(_) => {
-					let replaced: Option<Vec<H256>> = self.replace(log, topic);
+				VariadicValue::Multiple(multi) => {
+					let mut trimmed = multi;
+					while trimmed.iter().last().unwrap_or(&Some(H256::default())).is_none() {
+						trimmed.pop();
+					}
+					if trimmed.len() > log.topics.len() {
+						out = false;
+						break;
+					}
+					let replaced: Option<Vec<H256>> = self.replace(log, VariadicValue::Multiple(trimmed));
 					if let Some(replaced) = replaced {
 						out = false;
 						if log.topics.starts_with(
