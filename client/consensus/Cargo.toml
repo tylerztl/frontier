@@ -18,6 +18,7 @@ sp-block-builder = { version = "2.0.0", git = "https://github.com/paritytech/sub
 sp-inherents = { version = "2.0.0", git = "https://github.com/paritytech/substrate.git", branch = "master" }
 fp-consensus = { version = "0.1.0", path = "../../primitives/consensus" }
 sp-consensus = { version = "0.8.0", git = "https://github.com/paritytech/substrate.git", branch = "master" }
+fp-rpc = { path = "../../primitives/rpc" }
 log = "0.4.8"
 futures = { version = "0.3.1", features = ["compat"] }
 sp-timestamp = { version = "2.0.0", git = "https://github.com/paritytech/substrate.git", branch = "master" }
