@@ -16,7 +16,7 @@ pallet-evm = { version = "2.0.0", default-features = false, path = "../.." }
 fp-evm = { version = "0.8.0", default-features = false, path = "../../../../primitives/evm" }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
 # evm = { version = "0.23.0", default-features = false, features = ["with-codec"] }
-evm = { features = ["with-codec"], default-features = false, git = "https://github.com/notlesh/evm", branch = "notlesh-moonbeam-v0.6" }
+evm = { features = ["with-codec"], default-features = false, git = "https://github.com/purestake/evm", branch = "tgm-getters" }
 
 [features]
 default = ["std"]
