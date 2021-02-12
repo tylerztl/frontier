@@ -943,8 +943,6 @@ impl<B, C, P, CT, BE, H: ExHashT, A> EthApiT for EthApi<B, C, P, CT, BE, H, A> w
 				nonce
 			} = request;
 
-			log::warn!("Estimating gas. gas_price: {:?}, gas: {:?}, value: {:?}, nonce: {:?}", gas_price, gas, value, nonce);
-
 			// 15M is slightly higher than Moonbeam's current per-block limit
 			// TODO: this value works around a bug in evm's gas estimation, see:
 			// https://github.com/rust-blockchain/evm/issues/8
