@@ -17,7 +17,7 @@ sc-client-api = { version = "3.0.0", git = "https://github.com/paritytech/substr
 sp-block-builder = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git", branch = "master" }
 sp-inherents = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git", branch = "master" }
 fp-consensus = { version = "0.1.0", path = "../../primitives/consensus" }
-sp-consensus = { version = "0.8.0", git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-consensus = { version = "0.9.0", git = "https://github.com/paritytech/substrate.git", branch = "master" }
 log = "0.4.8"
 futures = { version = "0.3.1", features = ["compat"] }
 sp-timestamp = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git", branch = "master" }
