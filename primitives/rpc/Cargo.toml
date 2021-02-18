@@ -13,7 +13,7 @@ fp-evm = { version = "0.8.0", default-features = false, path = "../../primitives
 # ethereum = { version = "0.6", default-features = false, features = ["with-codec"] }
 ethereum = { default-features = false, features = ["with-codec"], git = "https://github.com/notlesh/ethereum", branch = "notlesh-moonbeam-v0.6" }
 ethereum-types = { version = "0.10", default-features = false }
-codec = { package = "parity-scale-codec", version = "1.0.0", default-features = false }
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
 sp-runtime = { version = "3.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "master" }
 sp-std = { version = "3.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "master" }
 sp-io = { version = "3.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "master" }
