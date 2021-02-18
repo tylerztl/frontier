@@ -14,8 +14,7 @@ sp-io = { version = "3.0.0", default-features = false, git = "https://github.com
 frame-support = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "master" }
 pallet-evm = { version = "3.0.0", default-features = false, path = "../.." }
 fp-evm = { version = "0.8.0", default-features = false, path = "../../../../primitives/evm" }
-# evm = { version = "0.21.0", default-features = false, features = ["with-codec"] }
-evm = { default-features = false, features = ["with-codec"], git = "https://github.com/notlesh/evm", branch = "notlesh-moonbeam-v0.6" }
+evm = { version = "0.23.0", default-features = false, features = ["with-codec"] }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
 
 [features]
