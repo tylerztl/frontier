@@ -23,7 +23,7 @@ fp-evm = { version = "0.8.0", default-features = false, path = "../../primitives
 evm = { default-features = false, features = ["with-codec"], git = "https://github.com/notlesh/evm", branch = "notlesh-moonbeam-v0.6" }
 # ethereum = { version = "0.6", default-features = false, features = ["with-codec"] }
 ethereum = { default-features = false, features = ["with-codec"], git = "https://github.com/notlesh/ethereum", branch = "notlesh-moonbeam-v0.6" }
-ethereum-types = { version = "0.10", default-features = false }
+ethereum-types = { version = "0.11", default-features = false }
 rlp = { version = "0.5", default-features = false }
 sha3 = { version = "0.8", default-features = false }
 libsecp256k1 = { version = "0.3", default-features = false }
