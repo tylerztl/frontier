@@ -1154,10 +1154,12 @@ dependencies = [
 
 [[package]]
 name = "ethereum"
-version = "0.6.0"
-source = "git+https://github.com/notlesh/ethereum?branch=notlesh-moonbeam-v0.6#ea1b9e405a17f92fc7d27028136915604ccb948a"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e058b37a6608bf0a73e4f55fcf553d0d24f12cc9ea95d1a8e50a5cbf6ad20e45"
 dependencies = [
  "ethereum-types",
+ "funty",
  "hash-db",
  "hash256-std-hasher",
  "parity-scale-codec",
@@ -1191,8 +1193,8 @@ checksum = "f7531096570974c3a9dcf9e4b8e1cede1ec26cf5046219fb3b9d897503b9be59"
 
 [[package]]
 name = "evm"
-version = "0.23.0"
-source = "git+https://github.com/notlesh/evm?branch=notlesh-moonbeam-v0.6#123f5c7778befd201887bc58125f0e479589b56f"
+version = "0.24.0"
+source = "git+https://github.com/rust-blockchain/evm?branch=master#decff9f8550e2bc147d03ffe4f333317861b9653"
 dependencies = [
  "ethereum",
  "evm-core",
@@ -1208,9 +1210,10 @@ dependencies = [
 
 [[package]]
 name = "evm-core"
-version = "0.23.0"
-source = "git+https://github.com/notlesh/evm?branch=notlesh-moonbeam-v0.6#123f5c7778befd201887bc58125f0e479589b56f"
+version = "0.24.0"
+source = "git+https://github.com/rust-blockchain/evm?branch=master#decff9f8550e2bc147d03ffe4f333317861b9653"
 dependencies = [
+ "funty",
  "parity-scale-codec",
  "primitive-types",
  "serde",
@@ -1218,8 +1221,8 @@ dependencies = [
 
 [[package]]
 name = "evm-gasometer"
-version = "0.23.0"
-source = "git+https://github.com/notlesh/evm?branch=notlesh-moonbeam-v0.6#123f5c7778befd201887bc58125f0e479589b56f"
+version = "0.24.0"
+source = "git+https://github.com/rust-blockchain/evm?branch=master#decff9f8550e2bc147d03ffe4f333317861b9653"
 dependencies = [
  "evm-core",
  "evm-runtime",
@@ -1228,8 +1231,8 @@ dependencies = [
 
 [[package]]
 name = "evm-runtime"
-version = "0.23.0"
-source = "git+https://github.com/notlesh/evm?branch=notlesh-moonbeam-v0.6#123f5c7778befd201887bc58125f0e479589b56f"
+version = "0.24.0"
+source = "git+https://github.com/rust-blockchain/evm?branch=master#decff9f8550e2bc147d03ffe4f333317861b9653"
 dependencies = [
  "evm-core",
  "primitive-types",
