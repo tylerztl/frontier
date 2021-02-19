@@ -84,7 +84,6 @@ impl<B, I, C> FrontierBlockImport<B, I, C> where
 	I::Error: Into<ConsensusError>,
 	C: ProvideRuntimeApi<B> + Send + Sync + HeaderBackend<B> + AuxStore + ProvideCache<B> + BlockOf,
 	C::Api: EthereumRuntimeRPCApi<B>,
-	C::Api: BlockBuilderApi<B, Error = sp_blockchain::Error>,
 	C::Api: BlockBuilderApi<B>,
 {
 	pub fn new(
