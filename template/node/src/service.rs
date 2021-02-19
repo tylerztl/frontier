@@ -77,11 +77,11 @@ pub fn new_partial(config: &Configuration, sealing: Option<Sealing>) -> Result<
 		FullClient, FullBackend, FullSelectChain,
 		sp_consensus::import_queue::BasicQueue<Block, sp_api::TransactionFor<FullClient, Block>>,
 		sc_transaction_pool::FullPool<Block, FullClient>,
-		(ConsensusResult, PendingTransactions, Option<TelemetrySpan>, Option<FilterPool>),
+		(ConsensusResult, PendingTransactions, Option<FilterPool>),
 >, ServiceError> {
 	let inherent_data_providers = sp_inherents::InherentDataProviders::new();
 
-	let (client, backend, keystore_container, task_manager, telemetry_span) =
+	let (client, backend, keystore_container, task_manager) =
 		sc_service::new_full_parts::<Block, RuntimeApi, Executor>(&config)?;
 	let client = Arc::new(client);
 
@@ -89,6 +89,7 @@ pub fn new_partial(config: &Configuration, sealing: Option<Sealing>) -> Result<
 
 	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
 		config.transaction_pool.clone(),
+		config.role.is_authority().into(),
 		config.prometheus_registry(),
 		task_manager.spawn_handle(),
 		client.clone(),
@@ -121,7 +122,7 @@ pub fn new_partial(config: &Configuration, sealing: Option<Sealing>) -> Result<
 		return Ok(sc_service::PartialComponents {
 			client, backend, task_manager, import_queue, keystore_container,
 			select_chain, transaction_pool, inherent_data_providers,
-			other: (ConsensusResult::ManualSeal(frontier_block_import, sealing), pending_transactions, telemetry_span, filter_pool)
+			other: (ConsensusResult::ManualSeal(frontier_block_import, sealing), pending_transactions, filter_pool)
 		})
 	}
 
@@ -153,7 +154,7 @@ pub fn new_partial(config: &Configuration, sealing: Option<Sealing>) -> Result<
 	Ok(sc_service::PartialComponents {
 		client, backend, task_manager, import_queue, keystore_container,
 		select_chain, transaction_pool, inherent_data_providers,
-		other: (ConsensusResult::Aura(aura_block_import, grandpa_link), pending_transactions, telemetry_span, filter_pool)
+		other: (ConsensusResult::Aura(aura_block_import, grandpa_link), pending_transactions, filter_pool)
 	})
 }
 
@@ -166,7 +167,7 @@ pub fn new_full(
 	let sc_service::PartialComponents {
 		client, backend, mut task_manager, import_queue, keystore_container,
 		select_chain, transaction_pool, inherent_data_providers,
-		other: (consensus_result, pending_transactions, telemetry_span, filter_pool),
+		other: (consensus_result, pending_transactions,  filter_pool),
 	} = new_partial(&config, sealing)?;
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
@@ -222,6 +223,8 @@ pub fn new_full(
 			)
 		})
 	};
+	let telemetry_span = TelemetrySpan::new();
+	let _telemetry_span_entered = telemetry_span.enter();
 
 	let (_rpc_handlers, telemetry_connection_notifier) = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
 		network: network.clone(),
@@ -232,7 +235,7 @@ pub fn new_full(
 		rpc_extensions_builder: rpc_extensions_builder,
 		on_demand: None,
 		remote_blockchain: None,
-		backend, network_status_sinks, system_rpc_tx, config, telemetry_span,
+		backend, network_status_sinks, system_rpc_tx, config, telemetry_span: Some(telemetry_span.clone()),
 	})?;
 
 	// Spawn Frontier EthFilterApi maintenance task.
@@ -429,7 +432,7 @@ pub fn new_full(
 // FIXME: #238 Light client does not have a complete import pipeline or support manual/instant seal.
 /// Builds a new service for a light client.
 pub fn new_light(config: Configuration) -> Result<TaskManager, ServiceError> {
-	let (client, backend, keystore_container, mut task_manager, on_demand, telemetry_span) =
+	let (client, backend, keystore_container, mut task_manager, on_demand) =
 		sc_service::new_light_parts::<Block, RuntimeApi, Executor>(&config)?;
 
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
@@ -485,6 +488,9 @@ pub fn new_light(config: Configuration) -> Result<TaskManager, ServiceError> {
 		);
 	}
 
+	let telemetry_span = TelemetrySpan::new();
+	let _telemetry_span_entered = telemetry_span.enter();
+
 	sc_service::spawn_tasks(sc_service::SpawnTasksParams {
 		remote_blockchain: Some(backend.remote_blockchain()),
 		transaction_pool,
@@ -498,7 +504,7 @@ pub fn new_light(config: Configuration) -> Result<TaskManager, ServiceError> {
 		network,
 		network_status_sinks,
 		system_rpc_tx,
-		telemetry_span,
+		telemetry_span: Some(telemetry_span.clone()),
 	})?;
 
 	network_starter.start_network();
