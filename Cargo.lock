@@ -3884,7 +3884,6 @@ version = "2.0.0"
 dependencies = [
  "evm",
  "fp-evm",
- "hex",
  "num",
  "sp-core",
  "sp-io",
