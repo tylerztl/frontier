@@ -278,6 +278,7 @@ fn blake2_128_extend(bytes: &[u8]) -> Vec<u8> {
 	let mut ext: Vec<u8> = blake2_128(bytes).to_vec();
 	ext.extend_from_slice(bytes);
 	ext
+}
 
 impl<B, C, P, CT, BE, H: ExHashT, A> EthApi<B, C, P, CT, BE, H, A> where
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE> + AuxStore,
