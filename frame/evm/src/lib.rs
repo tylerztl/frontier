@@ -208,14 +208,25 @@ impl<H: Hasher<Out=H256>> AddressMapping<AccountId32> for HashedAddressMapping<H
 	}
 }
 
+/// Type of operation that needs a convertion.
+pub enum GasWeightMappingType {
+	Opcode(u8),
+	Context,
+	Limit,
+}
+
 /// A mapping function that converts Ethereum gas to Substrate weight
+/// `Limit` should return an upperbound, and the cummulative weights should
+/// not go above.
 pub trait GasWeightMapping {
-	fn gas_to_weight(gas: u64) -> Weight;
+	/// Used to convert opcode gas to weight.
+	fn gas_to_weight(t: GasWeightMappingType, gas: u64) -> Weight;
+	/// Used to convert precompiles weights to gas.
 	fn weight_to_gas(weight: Weight) -> u64;
 }
 
 impl GasWeightMapping for () {
-	fn gas_to_weight(gas: u64) -> Weight {
+	fn gas_to_weight(_: GasWeightMappingType, gas: u64) -> Weight {
 		gas as Weight
 	}
 	fn weight_to_gas(weight: Weight) -> u64 {
@@ -366,7 +377,8 @@ decl_module! {
 		}
 
 		/// Issue an EVM call operation. This is similar to a message call transaction in Ethereum.
-		#[weight = T::GasWeightMapping::gas_to_weight(*gas_limit)]
+		#[weight = T::GasWeightMapping::gas_to_weight(GasWeightMappingType::Limit, *gas_limit)]
+		#[clippy::allow(clippy::too_many_arguments)]
 		fn call(
 			origin,
 			source: H160,
@@ -400,14 +412,15 @@ decl_module! {
 			};
 
 			Ok(PostDispatchInfo {
-				actual_weight: Some(T::GasWeightMapping::gas_to_weight(info.used_gas.unique_saturated_into())),
+				actual_weight: Some(info.used_weight),
 				pays_fee: Pays::No,
 			})
 		}
 
 		/// Issue an EVM create operation. This is similar to a contract creation transaction in
 		/// Ethereum.
-		#[weight = T::GasWeightMapping::gas_to_weight(*gas_limit)]
+		#[weight = T::GasWeightMapping::gas_to_weight(GasWeightMappingType::Limit, *gas_limit)]
+		#[clippy::allow(clippy::too_many_arguments)]
 		fn create(
 			origin,
 			source: H160,
@@ -447,13 +460,14 @@ decl_module! {
 			}
 
 			Ok(PostDispatchInfo {
-				actual_weight: Some(T::GasWeightMapping::gas_to_weight(info.used_gas.unique_saturated_into())),
+				actual_weight: Some(info.used_weight),
 				pays_fee: Pays::No,
 			})
 		}
 
 		/// Issue an EVM create2 operation.
-		#[weight = T::GasWeightMapping::gas_to_weight(*gas_limit)]
+		#[weight = T::GasWeightMapping::gas_to_weight(GasWeightMappingType::Limit, *gas_limit)]
+		#[clippy::allow(clippy::too_many_arguments)]
 		fn create2(
 			origin,
 			source: H160,
@@ -495,7 +509,7 @@ decl_module! {
 			}
 
 			Ok(PostDispatchInfo {
-				actual_weight: Some(T::GasWeightMapping::gas_to_weight(info.used_gas.unique_saturated_into())),
+				actual_weight: Some(info.used_weight),
 				pays_fee: Pays::No,
 			})
 		}

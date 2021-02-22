@@ -39,7 +39,7 @@ use sp_runtime::{
 };
 use evm::ExitReason;
 use fp_evm::CallOrCreateInfo;
-use pallet_evm::{Runner, GasWeightMapping};
+use pallet_evm::{Runner, GasWeightMapping, GasWeightMappingType};
 use sha3::{Digest, Keccak256};
 use codec::{Encode, Decode};
 use fp_consensus::{FRONTIER_ENGINE_ID, ConsensusLog};
@@ -126,7 +126,7 @@ decl_module! {
 		fn deposit_event() = default;
 
 		/// Transact an Ethereum transaction.
-		#[weight = <T as pallet_evm::Config>::GasWeightMapping::gas_to_weight(transaction.gas_limit.unique_saturated_into())]
+		#[weight = <T as pallet_evm::Config>::GasWeightMapping::gas_to_weight(GasWeightMappingType::Limit, transaction.gas_limit.unique_saturated_into())]
 		fn transact(origin, transaction: ethereum::Transaction) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 
@@ -149,7 +149,7 @@ decl_module! {
 				None,
 			)?;
 
-			let (reason, status, used_gas) = match info {
+			let (reason, status, used_gas, used_weight) = match info {
 				CallOrCreateInfo::Call(info) => {
 					(info.exit_reason, TransactionStatus {
 						transaction_hash,
@@ -166,7 +166,7 @@ decl_module! {
 							);
 							bloom
 						},
-					}, info.used_gas)
+					}, info.used_gas, info.used_weight)
 				},
 				CallOrCreateInfo::Create(info) => {
 					(info.exit_reason, TransactionStatus {
@@ -184,7 +184,7 @@ decl_module! {
 							);
 							bloom
 						},
-					}, info.used_gas)
+					}, info.used_gas, info.used_weight)
 				},
 			};
 
@@ -203,7 +203,8 @@ decl_module! {
 			Pending::append((transaction, status, receipt));
 
 			Self::deposit_event(Event::Executed(source, contract_address.unwrap_or_default(), transaction_hash, reason));
-			Ok(Some(T::GasWeightMapping::gas_to_weight(used_gas.unique_saturated_into())).into())
+			// Ok(Some(T::GasWeightMapping::gas_to_weight(used_gas.unique_saturated_into())).into())
+			Ok(Some(used_weight).into())
 		}
 
 		fn on_finalize(n: T::BlockNumber) {

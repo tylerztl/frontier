@@ -23,17 +23,96 @@ use sp_runtime::traits::UniqueSaturatedInto;
 use frame_support::{
 	debug, ensure, traits::{Get, Currency, ExistenceRequirement},
 	storage::{StorageMap, StorageDoubleMap},
+	weights::Weight,
 };
 use sha3::{Keccak256, Digest};
 use fp_evm::{ExecutionInfo, CallInfo, CreateInfo, Log, Vicinity};
-use evm::{ExitReason, ExitError, Transfer};
+use evm::{ExitReason, ExitError, Transfer, Runtime, Opcode};
 use evm::backend::Backend as BackendT;
-use evm::executor::{StackExecutor, StackSubstateMetadata, StackState as StackStateT};
+use evm::executor::{StackExecutor, StackSubstateMetadata, StackState as StackStateT, Hook};
 use crate::{
 	Config, AccountStorages, FeeCalculator, AccountCodes, Module, Event,
-	Error, AddressMapping, PrecompileSet,
+	Error, AddressMapping, PrecompileSet, GasWeightMapping, GasWeightMappingType
 };
 use crate::runner::Runner as RunnerT;
+
+/// Measure the Substrate weight of the EVM execution.
+///
+/// Strategy :
+/// - Substract used gas before and after entering and leaving a
+///   subcall.
+/// - Substract used gas before and after step for non-call opcodes.
+///
+/// This allows to get accurate gas usage from the gasometer. These
+/// values are then provided to `T::GasWeightMapping` which will allow
+/// to customize how gas is translated to weight with fine control.
+pub struct WeightHook<T: Config> {
+	weight: Weight,
+	opcode_stack: Vec<Opcode>,
+	previous_used_gas: u64,
+	_marker: PhantomData<T>,
+}
+
+impl<T: Config> Default for WeightHook<T> {
+	fn default() -> Self {
+		Self {
+			weight: 0,
+			opcode_stack: Default::default(),
+			previous_used_gas: 0,
+			_marker: Default::default(),
+		}
+	}
+}
+
+impl<T: Config> Hook for WeightHook<T> {
+	/// Called before the execution of a context.
+	fn before_loop<'config, S: StackStateT<'config>, H: Hook>(
+		&mut self,
+		_executor: &StackExecutor<'config, S, H>,
+		_runtime: &Runtime,
+	) {
+		todo!()
+	}
+	/// Called before each step.
+	fn before_step<'config, S: StackStateT<'config>, H: Hook>(
+		&mut self,
+		executor: &StackExecutor<'config, S, H>,
+		runtime: &Runtime,
+	) {
+		// Add opcode to the opcode stack.
+		// Using a stack allow to support subcalls easily.
+		// Each `after_step` will pop its associated pushed opcode,
+		// leaving super calls items untouched.
+		if let Some((opcode, _stack)) = runtime.machine().inspect() {
+			self.opcode_stack.push(opcode);
+			self.previous_used_gas = executor.used_gas();
+			// TODO : Look at opcode, detect subcall
+		}
+	}
+	/// Called after each step.
+	fn after_step<'config, S: StackStateT<'config>, H: Hook>(
+		&mut self,
+		executor: &StackExecutor<'config, S, H>,
+		_runtime: &Runtime,
+	) {
+		if let Some(opcode) = self.opcode_stack.pop() {
+			// TODO : Only do that for non-subcall opcodes.
+			let opcode_gas = executor.used_gas() - self.previous_used_gas;
+
+			self.weight += T::GasWeightMapping::gas_to_weight(GasWeightMappingType::Opcode(opcode.0), opcode_gas);
+
+		}
+	}
+	/// Called after the execution of a context.
+	fn after_loop<'config, S: StackStateT<'config>, H: Hook>(
+		&mut self,
+		_executor: &StackExecutor<'config, S, H>,
+		_runtime: &Runtime,
+		_reason: &ExitReason,
+	) {
+		todo!()
+	}
+}
 
 #[derive(Default)]
 pub struct Runner<T: Config> {
@@ -51,7 +130,7 @@ impl<T: Config> Runner<T> {
 		config: &'config evm::Config,
 		f: F,
 	) -> Result<ExecutionInfo<R>, Error<T>> where
-		F: FnOnce(&mut StackExecutor<'config, SubstrateStackState<'_, 'config, T>>) -> (ExitReason, R),
+		F: FnOnce(&mut StackExecutor<'config, SubstrateStackState<'_, 'config, T>, WeightHook<T>>) -> (ExitReason, R),
 	{
 		// Gas price check is skipped when performing a gas estimation.
 		let gas_price = match gas_price {
@@ -74,6 +153,8 @@ impl<T: Config> Runner<T> {
 			config,
 			T::Precompiles::execute,
 		);
+
+		executor.set_hook(Some(WeightHook::default()));
 
 		let total_fee = gas_price.checked_mul(U256::from(gas_limit))
 			.ok_or(Error::<T>::FeeOverflow)?;
@@ -102,6 +183,11 @@ impl<T: Config> Runner<T> {
 		);
 
 		Module::<T>::deposit_fee(&source, total_fee.saturating_sub(actual_fee));
+
+		
+		// Get weight from hook.
+		let hook = executor.set_hook(None);
+		let used_weight = hook.expect("weight hook should be injected").weight;
 
 		let state = executor.into_state();
 
@@ -136,6 +222,7 @@ impl<T: Config> Runner<T> {
 			exit_reason: reason,
 			used_gas,
 			logs: state.substate.logs,
+			used_weight,
 		})
 	}
 }
