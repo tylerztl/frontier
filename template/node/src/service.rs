@@ -14,6 +14,7 @@ use sp_consensus_aura::sr25519::{AuthorityPair as AuraPair};
 use sc_finality_grandpa::SharedVoterState;
 use sp_timestamp::InherentError;
 use crate::cli::Sealing;
+use sc_telemetry::TelemetrySpan;
 
 // Our native executor instance.
 native_executor_instance!(
