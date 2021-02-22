@@ -39,7 +39,7 @@ use sp_runtime::{
 };
 use evm::ExitReason;
 use fp_evm::CallOrCreateInfo;
-use pallet_evm::{Runner, GasWeightMapping, GasWeightMappingType};
+use pallet_evm::{Runner, GasWeightMapping};
 use sha3::{Digest, Keccak256};
 use codec::{Encode, Decode};
 use fp_consensus::{FRONTIER_ENGINE_ID, ConsensusLog};
@@ -126,7 +126,7 @@ decl_module! {
 		fn deposit_event() = default;
 
 		/// Transact an Ethereum transaction.
-		#[weight = <T as pallet_evm::Config>::GasWeightMapping::gas_to_weight(GasWeightMappingType::Limit, transaction.gas_limit.unique_saturated_into())]
+		#[weight = <T as pallet_evm::Config>::GasWeightMapping::gas_to_weight(None, transaction.gas_limit.unique_saturated_into())]
 		fn transact(origin, transaction: ethereum::Transaction) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 

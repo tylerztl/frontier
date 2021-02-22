@@ -208,25 +208,25 @@ impl<H: Hasher<Out=H256>> AddressMapping<AccountId32> for HashedAddressMapping<H
 	}
 }
 
-/// Type of operation that needs a convertion.
-pub enum GasWeightMappingType {
-	Opcode(u8),
-	Context,
-	Limit,
-}
-
 /// A mapping function that converts Ethereum gas to Substrate weight
 /// `Limit` should return an upperbound, and the cummulative weights should
 /// not go above.
 pub trait GasWeightMapping {
 	/// Used to convert opcode gas to weight.
-	fn gas_to_weight(t: GasWeightMappingType, gas: u64) -> Weight;
+	/// Some(opcode) will be provided by the hooking of the runner,
+	/// and allows to fine tune gas to weight convertion based on
+	/// specific opcodes. None on the other hand will be used for the limit
+	/// calculation. This should be an upper bound.
+	///
+	/// **Warning :** This code is executed for **each step** of the EVM
+	/// execution and **must be performant**.
+	fn gas_to_weight(opcode: Option<u8>, gas: u64) -> Weight;
 	/// Used to convert precompiles weights to gas.
 	fn weight_to_gas(weight: Weight) -> u64;
 }
 
 impl GasWeightMapping for () {
-	fn gas_to_weight(_: GasWeightMappingType, gas: u64) -> Weight {
+	fn gas_to_weight(_: Option<u8>, gas: u64) -> Weight {
 		gas as Weight
 	}
 	fn weight_to_gas(weight: Weight) -> u64 {
@@ -377,7 +377,7 @@ decl_module! {
 		}
 
 		/// Issue an EVM call operation. This is similar to a message call transaction in Ethereum.
-		#[weight = T::GasWeightMapping::gas_to_weight(GasWeightMappingType::Limit, *gas_limit)]
+		#[weight = T::GasWeightMapping::gas_to_weight(None, *gas_limit)]
 		#[clippy::allow(clippy::too_many_arguments)]
 		fn call(
 			origin,
@@ -419,7 +419,7 @@ decl_module! {
 
 		/// Issue an EVM create operation. This is similar to a contract creation transaction in
 		/// Ethereum.
-		#[weight = T::GasWeightMapping::gas_to_weight(GasWeightMappingType::Limit, *gas_limit)]
+		#[weight = T::GasWeightMapping::gas_to_weight(None, *gas_limit)]
 		#[clippy::allow(clippy::too_many_arguments)]
 		fn create(
 			origin,
@@ -466,7 +466,7 @@ decl_module! {
 		}
 
 		/// Issue an EVM create2 operation.
-		#[weight = T::GasWeightMapping::gas_to_weight(GasWeightMappingType::Limit, *gas_limit)]
+		#[weight = T::GasWeightMapping::gas_to_weight(None, *gas_limit)]
 		#[clippy::allow(clippy::too_many_arguments)]
 		fn create2(
 			origin,

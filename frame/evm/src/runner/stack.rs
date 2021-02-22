@@ -32,7 +32,7 @@ use evm::backend::Backend as BackendT;
 use evm::executor::{StackExecutor, StackSubstateMetadata, StackState as StackStateT, Hook};
 use crate::{
 	Config, AccountStorages, FeeCalculator, AccountCodes, Module, Event,
-	Error, AddressMapping, PrecompileSet, GasWeightMapping, GasWeightMappingType
+	Error, AddressMapping, PrecompileSet, GasWeightMapping, 
 };
 use crate::runner::Runner as RunnerT;
 
@@ -48,7 +48,7 @@ use crate::runner::Runner as RunnerT;
 /// to customize how gas is translated to weight with fine control.
 pub struct WeightHook<T: Config> {
 	weight: Weight,
-	opcode_stack: Vec<Opcode>,
+	opcode_stack: Vec<Option<u8>>, // None = inside a call
 	previous_used_gas: u64,
 	_marker: PhantomData<T>,
 }
@@ -68,11 +68,22 @@ impl<T: Config> Hook for WeightHook<T> {
 	/// Called before the execution of a context.
 	fn before_loop<'config, S: StackStateT<'config>, H: Hook>(
 		&mut self,
-		_executor: &StackExecutor<'config, S, H>,
+		executor: &StackExecutor<'config, S, H>,
 		_runtime: &Runtime,
 	) {
-		todo!()
+		if let Some(Some(opcode)) = self.opcode_stack.pop() {
+			// Corresponds to the cost of the opcode and context creation only.
+			// Other steps of the subcall will be measured with `after_step`.
+			let opcode_gas = executor.used_gas() - self.previous_used_gas;
+
+			self.weight += T::GasWeightMapping::gas_to_weight(Some(opcode), opcode_gas);
+
+			// Push a sentinel value to prevent measuring this opcode or even
+			// the subcall twice.
+			self.opcode_stack.push(None); 
+		}
 	}
+
 	/// Called before each step.
 	fn before_step<'config, S: StackStateT<'config>, H: Hook>(
 		&mut self,
@@ -83,12 +94,12 @@ impl<T: Config> Hook for WeightHook<T> {
 		// Using a stack allow to support subcalls easily.
 		// Each `after_step` will pop its associated pushed opcode,
 		// leaving super calls items untouched.
-		if let Some((opcode, _stack)) = runtime.machine().inspect() {
-			self.opcode_stack.push(opcode);
+		if let Some((Opcode(opcode), _stack)) = runtime.machine().inspect() {
+			self.opcode_stack.push(Some(opcode));
 			self.previous_used_gas = executor.used_gas();
-			// TODO : Look at opcode, detect subcall
 		}
 	}
+
 	/// Called after each step.
 	fn after_step<'config, S: StackStateT<'config>, H: Hook>(
 		&mut self,
@@ -96,21 +107,29 @@ impl<T: Config> Hook for WeightHook<T> {
 		_runtime: &Runtime,
 	) {
 		if let Some(opcode) = self.opcode_stack.pop() {
-			// TODO : Only do that for non-subcall opcodes.
-			let opcode_gas = executor.used_gas() - self.previous_used_gas;
+			// Subcall opcodes (None) are measured in `before_loop`.
+			if let Some(opcode) = opcode {
+				let opcode_gas = executor.used_gas() - self.previous_used_gas;
 
-			self.weight += T::GasWeightMapping::gas_to_weight(GasWeightMappingType::Opcode(opcode.0), opcode_gas);
-
+				self.weight += T::GasWeightMapping::gas_to_weight(Some(opcode), opcode_gas);
+			}
 		}
 	}
+
 	/// Called after the execution of a context.
 	fn after_loop<'config, S: StackStateT<'config>, H: Hook>(
 		&mut self,
-		_executor: &StackExecutor<'config, S, H>,
+		executor: &StackExecutor<'config, S, H>,
 		_runtime: &Runtime,
 		_reason: &ExitReason,
 	) {
-		todo!()
+		// Measure exiting/reverting opcode, since `after_step` is not called
+		// for those.
+		if let Some(Some(opcode)) = self.opcode_stack.pop() {
+			let opcode_gas = executor.used_gas() - self.previous_used_gas;
+
+			self.weight += T::GasWeightMapping::gas_to_weight(Some(opcode), opcode_gas);
+		}
 	}
 }
 

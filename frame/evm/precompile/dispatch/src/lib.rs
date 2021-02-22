@@ -24,7 +24,7 @@ use core::marker::PhantomData;
 use fp_evm::Precompile;
 use evm::{ExitSucceed, ExitError, Context};
 use frame_support::{dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo}, weights::{Pays, DispatchClass}};
-use pallet_evm::{AddressMapping, GasWeightMapping, GasWeightMappingType};
+use pallet_evm::{AddressMapping, GasWeightMapping};
 use codec::Decode;
 
 pub struct Dispatch<T: pallet_evm::Config> {
@@ -50,7 +50,7 @@ impl<T> Precompile for Dispatch<T> where
 		}
 
 		if let Some(gas) = target_gas {
-			let valid_weight = info.weight <= T::GasWeightMapping::gas_to_weight(GasWeightMappingType::Limit, gas);
+			let valid_weight = info.weight <= T::GasWeightMapping::gas_to_weight(None, gas);
 			if !valid_weight {
 				return Err(ExitError::OutOfGas)
 			}
