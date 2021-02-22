@@ -942,7 +942,12 @@ impl<B, C, P, CT, BE, H: ExHashT, A> EthApiT for EthApi<B, C, P, CT, BE, H, A> w
 				nonce
 			} = request;
 
-			let gas_limit = gas.unwrap_or(U256::max_value()); // TODO: set a limit
+			log::warn!("Estimating gas. gas_price: {:?}, gas: {:?}, value: {:?}, nonce: {:?}", gas_price, gas, value, nonce);
+
+			// 15M is slightly higher than Moonbeam's current per-block limit
+			// TODO: this value works around a bug in evm's gas estimation, see:
+			// https://github.com/rust-blockchain/evm/issues/8
+			let gas_limit = gas.unwrap_or(U256::from(15_000_000));
 			let data = data.map(|d| d.0).unwrap_or_default();
 
 			let used_gas = match to {
