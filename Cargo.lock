@@ -1154,9 +1154,8 @@ dependencies = [
 
 [[package]]
 name = "ethereum"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e058b37a6608bf0a73e4f55fcf553d0d24f12cc9ea95d1a8e50a5cbf6ad20e45"
+version = "0.7.1"
+source = "git+https://github.com/rust-blockchain/ethereum?branch=master#f11532e1054bd5c9d5a12b4d41ae07ccc3e0730d"
 dependencies = [
  "ethereum-types",
  "funty",
@@ -1194,7 +1193,7 @@ checksum = "f7531096570974c3a9dcf9e4b8e1cede1ec26cf5046219fb3b9d897503b9be59"
 [[package]]
 name = "evm"
 version = "0.24.0"
-source = "git+https://github.com/rust-blockchain/evm#decff9f8550e2bc147d03ffe4f333317861b9653"
+source = "git+https://github.com/notlesh/evm?branch=notlesh-funty-workaround-wasm#d882c2305d1de0e885ab211b29ad72a12a9cb617"
 dependencies = [
  "ethereum",
  "evm-core",
@@ -1211,7 +1210,7 @@ dependencies = [
 [[package]]
 name = "evm-core"
 version = "0.24.0"
-source = "git+https://github.com/rust-blockchain/evm#decff9f8550e2bc147d03ffe4f333317861b9653"
+source = "git+https://github.com/notlesh/evm?branch=notlesh-funty-workaround-wasm#d882c2305d1de0e885ab211b29ad72a12a9cb617"
 dependencies = [
  "funty",
  "parity-scale-codec",
@@ -1222,7 +1221,7 @@ dependencies = [
 [[package]]
 name = "evm-gasometer"
 version = "0.24.0"
-source = "git+https://github.com/rust-blockchain/evm#decff9f8550e2bc147d03ffe4f333317861b9653"
+source = "git+https://github.com/notlesh/evm?branch=notlesh-funty-workaround-wasm#d882c2305d1de0e885ab211b29ad72a12a9cb617"
 dependencies = [
  "evm-core",
  "evm-runtime",
@@ -1232,7 +1231,7 @@ dependencies = [
 [[package]]
 name = "evm-runtime"
 version = "0.24.0"
-source = "git+https://github.com/rust-blockchain/evm#decff9f8550e2bc147d03ffe4f333317861b9653"
+source = "git+https://github.com/notlesh/evm?branch=notlesh-funty-workaround-wasm#d882c2305d1de0e885ab211b29ad72a12a9cb617"
 dependencies = [
  "evm-core",
  "primitive-types",
