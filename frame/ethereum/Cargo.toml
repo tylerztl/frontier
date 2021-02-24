@@ -28,6 +28,7 @@ sha3 = { version = "0.8", default-features = false }
 libsecp256k1 = { version = "0.3", default-features = false }
 fp-consensus = { path = "../../primitives/consensus", default-features = false }
 fp-rpc = { path = "../../primitives/rpc", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate.git", branch = "master", default-features = false, optional = true }
 
 [dev-dependencies]
 sp-core = { version = "3.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "master" }
@@ -55,4 +56,6 @@ std = [
 	"fp-consensus/std",
 	"fp-rpc/std",
 	"evm/std",
+	"frame-benchmarking/std",
 ]
+runtime-benchmarks = ["frame-benchmarking"]

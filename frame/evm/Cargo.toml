@@ -33,6 +33,7 @@ evm = { git = "https://github.com/notlesh/evm", branch = "notlesh-funty-workarou
 evm-runtime = { git = "https://github.com/notlesh/evm", branch = "notlesh-funty-workaround-wasm", default-features = false }
 evm-gasometer = { git = "https://github.com/notlesh/evm", branch = "notlesh-funty-workaround-wasm", default-features = false }
 sha3 = { version = "0.8", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate.git", branch = "master", default-features = false, optional = true }
 
 [features]
 default = ["std"]
@@ -55,4 +56,6 @@ std = [
 	"evm-runtime/std",
 	"evm-gasometer/std",
 	"pallet-timestamp/std",
+	"frame-benchmarking/std",
 ]
+runtime-benchmarks = ["frame-benchmarking"]
