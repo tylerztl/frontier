@@ -47,6 +47,9 @@ use fp_consensus::{FRONTIER_ENGINE_ID, ConsensusLog};
 pub use fp_rpc::TransactionStatus;
 pub use ethereum::{Transaction, Log, Block, Receipt, TransactionAction, TransactionMessage};
 
+#[cfg(any(feature = "runtime-benchmarks", test))]
+mod benchmarking;
+
 #[cfg(all(feature = "std", test))]
 mod tests;
 

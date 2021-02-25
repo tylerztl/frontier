@@ -17,32 +17,35 @@
 #![cfg(feature = "runtime-benchmarks")]
 
 use super::*;
-use mock::*;
 use sp_std::prelude::*;
 use frame_system::RawOrigin;
 use frame_benchmarking::{benchmarks, account, whitelisted_caller};
-use ethereum::{Transaction};
+use ethereum::{Transaction, TransactionAction, TransactionSignature};
 
+/*
 benchmarks! {
 	transact {
 		let caller: T::AccountId = whitelisted_caller();
 		let txn: UnsignedTransaction = UnsignedTransaction {
-			nonce: 0,
-			gas_price: 0,
-			gas_limit: 0,
-			action: TransactionAction::Call,
-			value: 0,
+			nonce: 0.into(),
+			gas_price: 0.into(),
+			gas_limit: 0.into(),
+			action: TransactionAction::Call(H160::repeat_byte(0)),
+			value: 0.into(),
 			input: vec![],
 		};
-	}: _(RawOrigin::Signed(caller.clone()), txn.sign(caller))
+		let sk: H256 = H256::repeat_byte(0);
+	}: _(RawOrigin::Signed(caller.clone()), txn.sign(&sk))
 	verify {
 	}
 
 }
+*/
 
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use mock::*;
 	use crate::tests::{new_test_ext, Test};
 	use frame_support::{assert_ok, assert_err};
 
