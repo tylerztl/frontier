@@ -23,9 +23,12 @@ use frame_system::{RawOrigin, Origin};
 use frame_benchmarking::{benchmarks, account, whitelisted_caller};
 
 use crate::Module as Evm;
+use pallet_evm_precompile_modexp::Modexp;
 
-/*
+extern crate hex;
+
 benchmarks! {
+	/*
 	call {
 		let caller: T::AccountId = whitelisted_caller();
 	}: _(
@@ -40,9 +43,27 @@ benchmarks! {
 		)
 	verify {
 	}
+	*/
+
+	test_modexp {
+		let input = hex::decode(
+			"0000000000000000000000000000000000000000000000000000000000000001\
+			0000000000000000000000000000000000000000000000000000000000000020\
+			0000000000000000000000000000000000000000000000000000000000000020\
+			03\
+			fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e\
+			fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f")
+			.expect("Decode failed");
+
+		// let input: [u8; 100] = [0; 100];
+
+		let cost: u64 = 1;
+		<Modexp as LinearCostPrecompile>::execute(&input, cost);
+
+	}:
+	{ }
 
 }
-*/
 
 #[cfg(test)]
 mod tests {
