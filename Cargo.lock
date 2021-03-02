@@ -3845,6 +3845,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "hex",
+ "num",
  "pallet-balances",
  "pallet-evm-precompile-modexp",
  "pallet-timestamp",
