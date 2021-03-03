@@ -22,14 +22,14 @@ use ethereum::{
 };
 use ethereum_types::{H160, H256, H64, U256, U64, H512};
 use jsonrpc_core::{BoxFuture, Result, futures::future::{self, Future}};
-use futures::future::TryFutureExt;
+use futures::{ StreamExt, future::TryFutureExt};
 use sp_runtime::{
 	traits::{Block as BlockT, UniqueSaturatedInto, Zero, One, Saturating, BlakeTwo256},
-	transaction_validity::TransactionSource
+	transaction_validity::TransactionSource, generic::OpaqueDigestItemId
 };
 use sp_api::{ProvideRuntimeApi, BlockId, Core, HeaderT};
 use sp_transaction_pool::{TransactionPool, InPoolTransaction};
-use sc_client_api::backend::{StorageProvider, Backend, StateBackend, AuxStore};
+use sc_client_api::{ client::BlockchainEvents, backend::{StorageProvider, Backend, StateBackend, AuxStore}};
 use sha3::{Keccak256, Digest};
 use sp_blockchain::{Error as BlockChainError, HeaderMetadata, HeaderBackend};
 use sc_network::{NetworkService, ExHashT};
@@ -42,6 +42,7 @@ use fc_rpc_core::types::{
 	BlockTransactions, TransactionRequest, PendingTransactions, PendingTransaction,
 };
 use fp_rpc::{EthereumRuntimeRPCApi, ConvertTransaction, TransactionStatus};
+use fp_consensus::{FRONTIER_ENGINE_ID, ConsensusLog};
 use crate::{internal_err, error_on_execution_failure, EthSigner, public_key};
 
 pub use fc_rpc_core::{EthApiServer, NetApiServer, Web3ApiServer, EthFilterApiServer};
@@ -265,7 +266,7 @@ fn logs_build(
 
 impl<B, C, P, CT, BE, H: ExHashT> EthApi<B, C, P, CT, BE, H> where
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE> + AuxStore,
-	C: HeaderBackend<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
+	C: HeaderBackend<B> + BlockchainEvents<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
 	C::Api: EthereumRuntimeRPCApi<B>,
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
@@ -274,6 +275,45 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApi<B, C, P, CT, BE, H> where
 	P: TransactionPool<Block=B> + Send + Sync + 'static,
 	CT: ConvertTransaction<<B as BlockT>::Extrinsic> + Send + Sync + 'static,
 {
+	pub async fn frontier_pending_transaction_task(
+		client: Arc<C>,
+		pending_transactions: PendingTransactions,
+		retain_threshold: u64,
+	) {
+		client.import_notification_stream().for_each(|notification| {
+			let pending_transactions = pending_transactions.clone();
+			let digest = notification.header.digest().clone();
+			async move {
+				if let Ok(locked) = &mut pending_transactions.unwrap().lock() {
+					// As pending transactions have a finite lifespan anyway
+					// we can ignore MultiplePostRuntimeLogs error checks.
+					let mut frontier_log: Option<_> = None;
+					for log in digest.logs {
+						let log = log.try_to::<ConsensusLog>(OpaqueDigestItemId::Consensus(&FRONTIER_ENGINE_ID));
+						if let Some(log) = log {
+							frontier_log = Some(log);
+						}
+					}
+					let imported_number: u64 = UniqueSaturatedInto::<u64>::unique_saturated_into(
+						notification.header.number().clone()
+					);
+					if let Some(ConsensusLog::EndBlock {
+						block_hash: _, transaction_hashes,
+					}) = frontier_log {
+						// Retain all pending transactions that were not
+						// processed in the current block.
+						locked.retain(|&k, _| !transaction_hashes.contains(&k));
+					}
+					locked.retain(|_, v| {
+						// Drop all the transactions that exceeded the given lifespan.
+						let lifespan_limit = v.at_block + retain_threshold;
+						lifespan_limit > imported_number
+					});
+				}
+			}
+		}).await
+	}
+
 	fn native_block_id(&self, number: Option<BlockNumber>) -> Result<Option<BlockId<B>>> {
 		Ok(match number.unwrap_or(BlockNumber::Latest) {
 			BlockNumber::Hash { hash, .. } => {
@@ -360,7 +400,7 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApi<B, C, P, CT, BE, H> where
 
 impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE> + AuxStore,
-	C: HeaderBackend<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
+	C: HeaderBackend<B> + BlockchainEvents<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
 	C::Api: EthereumRuntimeRPCApi<B>,
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
@@ -1290,10 +1330,33 @@ impl<B, C> EthFilterApi<B, C> {
 impl<B, C> EthFilterApi<B, C> where
 	C: ProvideRuntimeApi<B> + AuxStore,
 	C::Api: EthereumRuntimeRPCApi<B>,
-	C: HeaderBackend<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
+	C: HeaderBackend<B> + BlockchainEvents<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
 	C: Send + Sync + 'static,
 	B: BlockT<Hash=H256> + Send + Sync + 'static,
 {
+	pub async fn frontier_filter_task(
+		client: Arc<C>,
+		filter_pool: Option<FilterPool>,
+		retain_threshold: u64,
+	) {
+		client.import_notification_stream().for_each(|notification| {
+			let filter_pool = filter_pool.clone();
+			async move {
+				if let Ok(locked) = &mut filter_pool.unwrap().lock() {
+					let imported_number: u64 = UniqueSaturatedInto::<u64>::unique_saturated_into(
+						notification.header.number().clone()
+					);
+					for (k, v) in locked.clone().iter() {
+						let lifespan_limit = v.at_block + retain_threshold;
+						if lifespan_limit <= imported_number {
+							locked.remove(&k);
+						}
+					}
+				}
+			}
+		}).await;
+	}
+
 	fn create_filter(&self, filter_type: FilterType) -> Result<U256> {
 		let block_number = UniqueSaturatedInto::<u64>::unique_saturated_into(
 			self.client.info().best_number
@@ -1330,7 +1393,7 @@ impl<B, C> EthFilterApi<B, C> where
 impl<B, C> EthFilterApiT for EthFilterApi<B, C> where
 	C: ProvideRuntimeApi<B> + AuxStore,
 	C::Api: EthereumRuntimeRPCApi<B>,
-	C: HeaderBackend<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
+	C: HeaderBackend<B> + BlockchainEvents<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
 	C: Send + Sync + 'static,
 	B: BlockT<Hash=H256> + Send + Sync + 'static,
 {

@@ -2,6 +2,7 @@
 
 use std::{sync::{Arc, Mutex}, cell::RefCell, time::Duration, collections::{HashMap, BTreeMap}};
 use fc_rpc_core::types::{FilterPool, PendingTransactions};
+use fc_rpc::{EthApi, EthFilterApi};
 use sc_client_api::{ExecutorProvider, RemoteBackend, BlockchainEvents};
 use sc_consensus_manual_seal::{self as manual_seal};
 use fc_consensus::FrontierBlockImport;
@@ -237,65 +238,28 @@ pub fn new_full(
 
 	// Spawn Frontier EthFilterApi maintenance task.
 	if filter_pool.is_some() {
-		use futures::StreamExt;
 		// Each filter is allowed to stay in the pool for 100 blocks.
 		const FILTER_RETAIN_THRESHOLD: u64 = 100;
 		task_manager.spawn_essential_handle().spawn(
 			"frontier-filter-pool",
-			client.import_notification_stream().for_each(move |notification| {
-				if let Ok(locked) = &mut filter_pool.clone().unwrap().lock() {
-					let imported_number: u64 = notification.header.number as u64;
-					for (k, v) in locked.clone().iter() {
-						let lifespan_limit = v.at_block + FILTER_RETAIN_THRESHOLD;
-						if lifespan_limit <= imported_number {
-							locked.remove(&k);
-						}
-					}
-				}
-				futures::future::ready(())
-			})
+			EthFilterApi::frontier_filter_task(
+				client.clone(),
+				filter_pool.clone(),
+				FILTER_RETAIN_THRESHOLD,
+			)
 		);
 	}
 
 	// Spawn Frontier pending transactions maintenance task (as essential, otherwise we leak).
 	if pending_transactions.is_some() {
-		use futures::StreamExt;
-		use fp_consensus::{FRONTIER_ENGINE_ID, ConsensusLog};
-		use sp_runtime::generic::OpaqueDigestItemId;
-
 		const TRANSACTION_RETAIN_THRESHOLD: u64 = 5;
 		task_manager.spawn_essential_handle().spawn(
 			"frontier-pending-transactions",
-			client.import_notification_stream().for_each(move |notification| {
-
-				if let Ok(locked) = &mut pending_transactions.clone().unwrap().lock() {
-					// As pending transactions have a finite lifespan anyway
-					// we can ignore MultiplePostRuntimeLogs error checks.
-					let mut frontier_log: Option<_> = None;
-					for log in notification.header.digest.logs {
-						let log = log.try_to::<ConsensusLog>(OpaqueDigestItemId::Consensus(&FRONTIER_ENGINE_ID));
-						if let Some(log) = log {
-							frontier_log = Some(log);
-						}
-					}
-
-					let imported_number: u64 = notification.header.number as u64;
-
-					if let Some(ConsensusLog::EndBlock {
-						block_hash: _, transaction_hashes,
-					}) = frontier_log {
-						// Retain all pending transactions that were not
-						// processed in the current block.
-						locked.retain(|&k, _| !transaction_hashes.contains(&k));
-					}
-					locked.retain(|_, v| {
-						// Drop all the transactions that exceeded the given lifespan.
-						let lifespan_limit = v.at_block + TRANSACTION_RETAIN_THRESHOLD;
-						lifespan_limit > imported_number
-					});
-				}
-				futures::future::ready(())
-			})
+			EthApi::frontier_pending_transaction_task(
+				client.clone(),
+				pending_transactions.clone(),
+				TRANSACTION_RETAIN_THRESHOLD,
+			)
 		);
 	}
 
