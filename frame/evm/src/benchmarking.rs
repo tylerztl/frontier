@@ -20,10 +20,13 @@ use super::*;
 use crate::Config;
 
 use sp_std::prelude::*;
+use sp_std::fmt;
 use frame_benchmarking::{benchmarks};
+use frame_support::ensure;
 
 use pallet_evm_precompile_modexp::Modexp;
-use num::{BigUint, FromPrimitive};
+use num::{BigUint, Zero, One, FromPrimitive};
+use core::convert::From;
 
 extern crate hex;
 
@@ -49,44 +52,77 @@ benchmarks! {
 
 	modexp {
 
-		let b in 0 .. 10_000;
-		let m in 0 .. 10_000;
-		let e in 0 .. 10_000;
+		let b in 2 .. 40_000_000;
+		let e in 101 .. 40_000_000;
+		let m in 3 .. 40_000_000;
 
-		// first 3 args declare the size of the following 3 args. we hard code these
-		// and then build the following 3 args
-		// TODO: don't hard code
-		// TODO: see if large values impact runtime
-		let size_args = hex::decode(
-			"0000000000000000000000000000000000000000000000000000000000000100\
-			0000000000000000000000000000000000000000000000000000000000000100\
-			0000000000000000000000000000000000000000000000000000000000000100")
-			.expect("Decode failed");
-
-		assert!(size_args.len() == 96);
+		frame_support::runtime_print!("=============================================================================");
+		frame_support::runtime_print!("Running modexp, b = {}, e = {}, m = {}", b, e, m);
 
 		// TODO: use benchmarking initialize fn
 		let base_big = BigUint::from_u32(b).unwrap();
-		let mod_big = BigUint::from_u32(m).unwrap();
 		let exp_big = BigUint::from_u32(e).unwrap();
+		let mod_big = BigUint::from_u32(m).unwrap();
+
+		frame_support::runtime_print!("base_big = {}, exp_big = {}, mod_big = {}",
+									  base_big, exp_big, mod_big);
 
 		let base_bytes = base_big.to_bytes_be();
-		let mod_bytes = mod_big.to_bytes_be();
 		let exp_bytes = exp_big.to_bytes_be();
+		let mod_bytes = mod_big.to_bytes_be();
 
 		let mut input: [u8; (32 * 6)] = [0; (32 * 6)]; // room for 6 256 bit uints
 
-		input[..96].copy_from_slice(&size_args);
-		input[(96+(32*1))..].copy_from_slice(&base_bytes);
-		input[(96+(32*2))..].copy_from_slice(&mod_bytes);
-		input[(96+(32*3))..].copy_from_slice(&exp_bytes);
+		let base_size_in_bytes: U256 = U256::from(base_bytes.len());
+		let exp_size_in_bytes: U256 = U256::from(exp_bytes.len());
+		let mod_size_in_bytes: U256 = U256::from(mod_bytes.len());
+
+		frame_support::runtime_print!("base_size = {}, exp_size = {}, mod_size = {}",
+									  base_size_in_bytes, exp_size_in_bytes, mod_size_in_bytes);
+
+		base_size_in_bytes.to_big_endian(&mut input[..32]);
+		exp_size_in_bytes.to_big_endian(&mut input[32..64]);
+		mod_size_in_bytes.to_big_endian(&mut input[64..96]);
+
+		let base_start: usize = 96;
+		let exp_start: usize = base_start + base_bytes.len();
+		let mod_start: usize = exp_start + exp_bytes.len();
+
+		input[base_start..(base_start + base_bytes.len())].copy_from_slice(&base_bytes);
+		input[exp_start..(exp_start + exp_bytes.len())].copy_from_slice(&exp_bytes);
+		input[mod_start..(mod_start + mod_bytes.len())].copy_from_slice(&mod_bytes);
 
 		let cost: u64 = 1;
 
+		// TODO: hack to have result in scope for verify block
+		/*
+		let mut result: core::result::Result<(ExitSucceed, Vec<u8>), ExitError>
+			= Err(ExitError::Other("FIXME".into()));
+			*/
+
 	}:
 	{
-		<Modexp as LinearCostPrecompile>::execute(&input, cost)
-			.expect("Modexp::execute() failed");
+		let result = <Modexp as LinearCostPrecompile>::execute(&input, cost);
+
+		let (_, response) = result.expect("Modexp::execute() errored");
+		ensure!(
+			U256::from(response.len()) == mod_size_in_bytes,
+			"Unexpected response size");
+
+		let value = if mod_big.is_zero() || mod_big.is_one() {
+			BigUint::zero()
+		} else {
+			BigUint::from_bytes_be(&response[..])
+		};
+
+		frame_support::runtime_print!("calculating base.modpow. {} ^ {} % {} = {}",
+									  base_big, exp_big, mod_big, base_big.modpow(&exp_big, &mod_big));
+
+		let expected = base_big.modpow(&exp_big, &mod_big);
+		if value != expected {
+			frame_support::runtime_print!("Modexp produced unexpected value: {} vs. {}", value, expected);
+		}
+		ensure!(value == expected, "Modexp produced unexpected value");
 	} verify {
 	}
 

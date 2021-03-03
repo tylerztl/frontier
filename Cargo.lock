@@ -3911,6 +3911,7 @@ version = "3.0.0"
 dependencies = [
  "evm",
  "fp-evm",
+ "frame-support",
  "hex",
  "num",
  "sp-core",

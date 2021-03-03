@@ -81,6 +81,9 @@ impl LinearCostPrecompile for Modexp {
 		let exp_len = exp_len_big.to_usize().expect("exp_len out of bounds");
 		let mod_len = mod_len_big.to_usize().expect("mod_len out of bounds");
 
+		frame_support::runtime_print!("Modexp: base_size = {}, mod_size = {}, exp_size = {}",
+									  base_len, mod_len, exp_len);
+
 		// input length should be at least 96 + user-specified length of base + exp + mod
 		let total_len = base_len + exp_len + mod_len + 96;
 		if input.len() < total_len {
@@ -89,6 +92,8 @@ impl LinearCostPrecompile for Modexp {
 
 		// Gas formula allows arbitrary large exp_len when base and modulus are empty, so we need to handle empty base first.
 		let r = if base_len == 0 && mod_len == 0 {
+			frame_support::runtime_print!("Modexp: bailing because len 0 (base_len: {}, mod_len: {})",
+										  base_len, mod_len);
 			BigUint::zero()
 		} else {
 
@@ -102,11 +107,18 @@ impl LinearCostPrecompile for Modexp {
 			let mod_start = exp_start + exp_len;
 			let modulus = BigUint::from_bytes_be(&input[mod_start..mod_start + mod_len]);
 
+			frame_support::runtime_print!("Modexp: base: {}, exp: {}, mod: {}",
+										  base, exponent, modulus);
+
 			// TODO: computation should only proceed if sufficient gas has been provided
 
 			if modulus.is_zero() || modulus.is_one() {
+				frame_support::runtime_print!("Modexp: bailing because mod is zero or one ({})",
+											  modulus);
 				BigUint::zero()
 			} else {
+				frame_support::runtime_print!("Modexp: calculating base.modpow. {} ^ {} % {} = {}",
+											  base, exponent, modulus, base.modpow(&exponent, &modulus));
 				base.modpow(&exponent, &modulus)
 			}
 		};
