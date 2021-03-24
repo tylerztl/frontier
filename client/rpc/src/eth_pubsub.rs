@@ -268,10 +268,29 @@ impl<B: BlockT, P, C, BE, H: ExHashT> EthPubSubApiT for EthPubSubApi<B, P, C, BE
 					.filter_map(move |notification| {
 						if notification.is_new_best {
 							let id = BlockId::Hash(notification.hash);
-							let receipts = client.runtime_api()
-								.current_receipts(&id);
-							let block = client.runtime_api()
-								.current_block(&id);
+
+							// TODO: data was previously from:
+							// let data = changes.iter().last().unwrap().2.unwrap();
+							// but |notification| replaced |(block_hash, changes)|
+							//     notification is actually:
+							//			pub type ImportNotificationStream<H> = futures::channel::mpsc::Receiver<H>;
+							//			as defined in substrate/rimitives/transaction-pool/src/pool.rs
+							//			(I think)
+
+							let receipts: Vec<ethereum::Receipt> =
+								Decode::decode(&mut &data.0[..]).unwrap();
+
+							let block: Option<ethereum::Block> = if let Ok(Some(data)) = client.storage(
+								&id,
+								&StorageKey(
+									storage_prefix_build(b"Ethereum", b"CurrentBlock")
+								)
+							) {
+								if let Ok(result) = Decode::decode(&mut &data.0[..]) {
+									Some(result)
+								} else { None }
+							} else { None };
+
 							match (receipts, block) {
 								(Ok(Some(receipts)), Ok(Some(block))) =>
 									futures::future::ready(Some((block, receipts))),
