@@ -560,6 +560,10 @@ impl_runtime_apis! {
 			Ethereum::current_transaction_statuses()
 		}
 
+		fn current_block_gas_limit() -> U256 {
+			<Runtime as pallet_ethereum::Config>::BlockGasLimit::get()
+		}
+
 		fn current_block() -> Option<pallet_ethereum::Block> {
 			Ethereum::current_block()
 		}
