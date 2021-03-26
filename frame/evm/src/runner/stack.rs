@@ -53,6 +53,16 @@ impl<T: Config> Runner<T> {
 	) -> Result<ExecutionInfo<R>, Error<T>> where
 		F: FnOnce(&mut StackExecutor<'config, SubstrateStackState<'_, 'config, T>>) -> (ExitReason, R),
 	{
+		sp_runtime::runtime_logger::RuntimeLogger::init();
+		log::debug!(
+			target: "evm",
+			"Executing [source: {:?}, value: {}, gas_limit: {}]",
+			source,
+			value,
+			gas_limit
+		);
+		sp_tracing::enter_span!(sp_tracing::Level::TRACE, "EVM execution");
+
 		// Gas price check is skipped when performing a gas estimation.
 		let gas_price = match gas_price {
 			Some(gas_price) => {
@@ -93,14 +103,16 @@ impl<T: Config> Runner<T> {
 
 		let used_gas = U256::from(executor.used_gas());
 		let actual_fee = executor.fee(gas_price);
+		sp_tracing::enter_span!(sp_tracing::Level::TRACE, "EVM execution done");
 		log::debug!(
 			target: "evm",
-			"Execution {:?} [source: {:?}, value: {}, gas_limit: {}, actual_fee: {}]",
+			"Execution {:?} [source: {:?}, value: {}, gas_limit: {}, actual_fee: {}, used_gas: {}]",
 			reason,
 			source,
 			value,
 			gas_limit,
-			actual_fee
+			actual_fee,
+			used_gas
 		);
 
 		// Refund fees to the `source` account if deducted more before,

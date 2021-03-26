@@ -21,6 +21,7 @@ pallet-timestamp = { version = "3.0.0", default-features = false, git = "https:/
 pallet-balances = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1" }
 sp-core = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1" }
 sp-runtime = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1" }
+sp-tracing = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1" }
 sp-std = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1" }
 sp-io = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1" }
 fp-evm = { version = "0.8.0", default-features = false, path = "../../primitives/evm" }
