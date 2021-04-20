@@ -1071,7 +1071,7 @@ impl<B, C, P, CT, BE, H: ExHashT, A> EthApiT for EthApi<B, C, P, CT, BE, H, A> w
 	}
 
 	fn logs(&self, filter: Filter) -> Result<Vec<Log>> {
-		// Max request duration of 10 seconds. 
+		// Max request duration of 10 seconds.
 		let max_duration = time::Duration::from_secs(10);
 		let begin_request = time::Instant::now();
 
@@ -1391,7 +1391,7 @@ impl<B, C, BE> EthFilterApiT for EthFilterApi<B, C, BE> where
 					},
 					// For each event since last poll, get a vector of ethereum logs.
 					FilterType::Log(filter) => {
-						// Max request duration of 10 seconds. 
+						// Max request duration of 10 seconds.
 						let max_duration = time::Duration::from_secs(10);
 						let begin_request = time::Instant::now();
 
@@ -1493,10 +1493,9 @@ impl<B, C, BE> EthFilterApiT for EthFilterApi<B, C, BE> where
 			if let Some(pool_item) = locked.clone().get(&key) {
 				match &pool_item.filter_type {
 					FilterType::Log(filter) => {
-						// Max request duration of 10 seconds. 
+						// Max request duration of 10 seconds.
 						let max_duration = time::Duration::from_secs(10);
 						let begin_request = time::Instant::now();
-						
 						let best_number = self.client.info().best_number;
 						let mut current_number = filter
 							.to_block.clone()
