@@ -21,7 +21,7 @@ use sp_block_builder::BlockBuilder;
 use sc_network::NetworkService;
 use jsonrpc_pubsub::manager::SubscriptionManager;
 use pallet_ethereum::EthereumStorageSchema;
-use fc_rpc::{StorageOverride, SchemaV1Override};
+use fc_rpc::{StorageOverride, SchemaV1Override, OverrideHandle, RuntimeApiStorageOverride};
 
 /// Light client extra dependencies.
 pub struct LightDeps<C, F, P> {
@@ -116,11 +116,17 @@ pub fn create_full<C, P, BE, A>(
 	if enable_dev_signer {
 		signers.push(Box::new(EthDevSigner::new()) as Box<dyn EthSigner>);
 	}
-	let mut overrides = BTreeMap::new();
-	overrides.insert(
+	let mut overrides_map = BTreeMap::new();
+	overrides_map.insert(
 		EthereumStorageSchema::V1,
 		Box::new(SchemaV1Override::new(client.clone())) as Box<dyn StorageOverride<_> + Send + Sync>
 	);
+
+	let overrides = Arc::new(OverrideHandle {
+		schemas: overrides_map,
+		fallback: Box::new(RuntimeApiStorageOverride::new(client.clone())),
+	});
+
 	io.extend_with(
 		EthApiServer::to_delegate(EthApi::new(
 			client.clone(),
@@ -130,7 +136,7 @@ pub fn create_full<C, P, BE, A>(
 			network.clone(),
 			pending_transactions.clone(),
 			signers,
-			overrides,
+			overrides.clone(),
 			backend,
 			is_authority,
 			max_past_logs,
@@ -143,6 +149,8 @@ pub fn create_full<C, P, BE, A>(
 				client.clone(),
 				filter_pool.clone(),
 				500 as usize, // max stored filters
+				overrides.clone(),
+				max_past_logs,
 			))
 		);
 	}
@@ -169,6 +177,7 @@ pub fn create_full<C, P, BE, A>(
 				HexEncodedIdProvider::default(),
 				Arc::new(subscription_task_executor)
 			),
+			overrides
 		))
 	);
 
