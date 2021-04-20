@@ -1283,13 +1283,19 @@ impl<B, C, P, CT, BE, H: ExHashT, A> EthApiT for EthApi<B, C, P, CT, BE, H, A> w
 			while current_number >= from_number {
 				let id = BlockId::Number(current_number);
 
-				let block: Option<ethereum::Block> = self.current_block(&id);
-				let statuses: Option<Vec<TransactionStatus>> = self.current_statuses(&id);
+				let schema = frontier_backend_client::onchain_storage_schema::<B, C, BE>(self.client.as_ref(), id);
+				let handler = self.overrides.schemas.get(&schema).unwrap_or(&self.overrides.fallback);
 
-				if let (Some(block), Some(statuses)) = (block, statuses) {
-					logs_build(&mut ret, &filter, block, statuses);
+				let block = handler.current_block(&id);
+
+				if let Some(block) = block {
+					if FilteredParams::in_bloom(block.header.logs_bloom, &filter) {
+						let statuses = handler.current_transaction_statuses(&id);
+						if let Some(statuses) = statuses {
+							logs_build(&mut ret, &filter, block, statuses);
+						}
+					}
 				}
-
 				if current_number == Zero::zero() {
 					break
 				} else {
