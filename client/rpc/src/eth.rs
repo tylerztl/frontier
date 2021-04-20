@@ -1253,7 +1253,6 @@ impl<B, C, P, CT, BE, H: ExHashT, A> EthApiT for EthApi<B, C, P, CT, BE, H, A> w
 		let max_duration = time::Duration::from_secs(10);
 		let begin_request = time::Instant::now();
 
-		let mut blocks_and_statuses = Vec::new();
 		let mut ret: Vec<Log> = Vec::new();
 		if let Some(hash) = filter.block_hash.clone() {
 			let id = match frontier_backend_client::load_hash::<B, C>(self.client.as_ref(), self.backend.as_ref(), hash)
@@ -1263,11 +1262,13 @@ impl<B, C, P, CT, BE, H: ExHashT, A> EthApiT for EthApi<B, C, P, CT, BE, H, A> w
 				_ => return Ok(Vec::new()),
 			};
 
-			let block: Option<ethereum::Block> = self.current_block(&id);
-			let statuses: Option<Vec<TransactionStatus>> = self.current_statuses(&id);
+			let schema = frontier_backend_client::onchain_storage_schema::<B, C, BE>(self.client.as_ref(), id);
+			let handler = self.overrides.schemas.get(&schema).unwrap_or(&self.overrides.fallback);
 
+			let block = handler.current_block(&id);
+			let statuses = handler.current_transaction_statuses(&id);
 			if let (Some(block), Some(statuses)) = (block, statuses) {
-				blocks_and_statuses.push((block, statuses));
+				logs_build(&mut ret, &filter, block, statuses);
 			}
 		} else {
 			let best_number = self.client.info().best_number;
