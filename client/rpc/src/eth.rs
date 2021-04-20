@@ -65,6 +65,7 @@ pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> {
 	fallback: Box<dyn StorageOverride<B> + Send + Sync>,
 	pending_transactions: PendingTransactions,
 	backend: Arc<fc_db::Backend<B>>,
+	max_past_logs: u32,
 	_marker: PhantomData<(B, BE)>,
 }
 
@@ -85,6 +86,7 @@ impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> EthApi<B, C, P, CT, BE, H
 		overrides: BTreeMap<EthereumStorageSchema, Box<dyn StorageOverride<B> + Send + Sync>>,
 		backend: Arc<fc_db::Backend<B>>,
 		is_authority: bool,
+		max_past_logs: u32,
 	) -> Self {
 		Self {
 			client: client.clone(),
@@ -98,6 +100,7 @@ impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> EthApi<B, C, P, CT, BE, H
 			fallback: Box::new(RuntimeApiStorageOverride::new(client)),
 			pending_transactions,
 			backend,
+			max_past_logs,
 			_marker: PhantomData,
 		}
 	}
@@ -1280,6 +1283,7 @@ impl<B, C, P, CT, BE, H: ExHashT, A> EthApiT for EthApi<B, C, P, CT, BE, H, A> w
 				.unwrap_or(
 					self.client.info().best_number
 				);
+
 			while current_number >= from_number {
 				let id = BlockId::Number(current_number);
 
@@ -1295,6 +1299,11 @@ impl<B, C, P, CT, BE, H: ExHashT, A> EthApiT for EthApi<B, C, P, CT, BE, H, A> w
 							logs_build(&mut ret, &filter, block, statuses);
 						}
 					}
+				}
+				if ret.len() as u32 > self.max_past_logs {
+					return Err(internal_err(
+						format!("query returned more than {} results", self.max_past_logs)
+					));
 				}
 				if current_number == Zero::zero() {
 					break
