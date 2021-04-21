@@ -1,6 +1,6 @@
 [package]
 name = "fc-rpc"
-version = "0.1.0"
+version = "2.0.0-dev"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Ethereum RPC (web3) compatibility layer for Substrate."
@@ -16,7 +16,7 @@ ethereum-types = "0.11.0"
 evm = "0.26.0"
 fc-consensus = { path = "../consensus" }
 fc-db = { path = "../db" }
-fc-rpc-core = { path = "../rpc-core" }
+fc-rpc-core = { version = "1.1.0-dev", path = "../rpc-core" }
 fp-consensus = { path = "../../primitives/consensus" }
 fp-rpc = { path = "../../primitives/rpc" }
 fp-storage = { path = "../../primitives/storage"}
