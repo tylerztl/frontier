@@ -1,12 +1,12 @@
 [package]
 name = "fp-consensus"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Primitives for Frontier consensus"
 edition = "2018"
 license = "Apache-2.0"
 homepage = "https://substrate.dev"
-repository = "https://github.com/purestake/substrate/"
+repository = "https://github.com/paritytech/frontier/"
 
 [dependencies]
 sp-std = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1" }
