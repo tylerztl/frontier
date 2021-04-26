@@ -17,6 +17,9 @@
 
 //! EVM stack-based runner.
 
+use synctools::rwlock::RwLock;
+use static_type_map::SendStaticTypeMap;
+use lazy_static::lazy_static;
 use sp_std::{marker::PhantomData, vec::Vec, boxed::Box, mem, collections::btree_set::BTreeSet};
 use sp_core::{U256, H256, H160};
 use sp_runtime::traits::UniqueSaturatedInto;
@@ -28,7 +31,7 @@ use sha3::{Keccak256, Digest};
 use fp_evm::{ExecutionInfo, CallInfo, CreateInfo, Log, Vicinity};
 use evm::{ExitReason, ExitError, Transfer};
 use evm::backend::Backend as BackendT;
-use evm::executor::{StackExecutor, StackSubstateMetadata, StackState as StackStateT};
+use evm::executor::{StackExecutor, StackSubstateMetadata, StackState as StackStateT, Hook};
 use crate::{
 	Config, AccountStorages, FeeCalculator, AccountCodes, Pallet, Event,
 	Error, AddressMapping, PrecompileSet, OnChargeEVMTransaction
@@ -36,11 +39,23 @@ use crate::{
 use crate::runner::Runner as RunnerT;
 
 #[derive(Default)]
-pub struct Runner<T: Config> {
-	_marker: PhantomData<T>,
+pub struct Runner<T: Config, H: Hook + Send + 'static = ()> {
+	_marker: PhantomData<(T, H)>,
 }
 
-impl<T: Config> Runner<T> {
+impl<T: Config, H: Hook + Send + 'static> Runner<T, H> {
+	/// Allow to set the hook that will be used by the EVM.
+	pub fn set_hook(
+		new_hook: Option<H>,
+	) -> Option<H> {
+		lazy_static! {
+			static ref HOOKS: RwLock<SendStaticTypeMap> = RwLock::new(SendStaticTypeMap::new());
+		};
+
+		let mut map = HOOKS.write();
+		map.insert(new_hook).flatten()
+	}
+
 	/// Execute an EVM operation.
 	pub fn execute<'config, F, R>(
 		source: H160,
@@ -51,7 +66,7 @@ impl<T: Config> Runner<T> {
 		config: &'config evm::Config,
 		f: F,
 	) -> Result<ExecutionInfo<R>, Error<T>> where
-		F: FnOnce(&mut StackExecutor<'config, SubstrateStackState<'_, 'config, T>>) -> (ExitReason, R),
+		F: FnOnce(&mut StackExecutor<'config, SubstrateStackState<'_, 'config, T>, H>) -> (ExitReason, R),
 	{
 		// Gas price check is skipped when performing a gas estimation.
 		let gas_price = match gas_price {
@@ -69,7 +84,7 @@ impl<T: Config> Runner<T> {
 
 		let metadata = StackSubstateMetadata::new(gas_limit, &config);
 		let state = SubstrateStackState::new(&vicinity, metadata);
-		let mut executor = StackExecutor::new_with_precompile(
+		let mut executor = StackExecutor::<'_, _, H>::new_with_precompile(
 			state,
 			config,
 			T::Precompiles::execute,
@@ -89,7 +104,13 @@ impl<T: Config> Runner<T> {
 		let fee = T::OnChargeTransaction::withdraw_fee(&source, total_fee)?;
 
 		// Execute the EVM call.
+		let hook = Self::set_hook(None);
+		let hook = executor.set_hook(hook);
+
 		let (reason, retv) = f(&mut executor);
+		
+		let hook = executor.set_hook(hook);
+		let _ = Self::set_hook(hook);
 
 		let used_gas = U256::from(executor.used_gas());
 		let actual_fee = executor.fee(gas_price);
@@ -143,7 +164,7 @@ impl<T: Config> Runner<T> {
 	}
 }
 
-impl<T: Config> RunnerT<T> for Runner<T> {
+impl<T: Config, H: Hook + Send + 'static> RunnerT<T> for Runner<T, H> {
 	type Error = Error<T>;
 
 	fn call(

@@ -1207,8 +1207,7 @@ checksum = "f7531096570974c3a9dcf9e4b8e1cede1ec26cf5046219fb3b9d897503b9be59"
 [[package]]
 name = "evm"
 version = "0.26.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1202e8dfa45bea73ee003c4be2f3549d60cb2e2ac5b0c1db563bd4653213efde"
+source = "git+https://github.com/PureStake/evm?branch=jeremy-evm-hook#a36d6129491e0d057559a871bc92d2db96aa9105"
 dependencies = [
  "ethereum",
  "evm-core",
@@ -1225,8 +1224,7 @@ dependencies = [
 [[package]]
 name = "evm-core"
 version = "0.26.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9aeed00c943f6347108393c98907f432d8f2b82683725dfefbd734d335faace4"
+source = "git+https://github.com/PureStake/evm?branch=jeremy-evm-hook#a36d6129491e0d057559a871bc92d2db96aa9105"
 dependencies = [
  "funty",
  "parity-scale-codec",
@@ -1237,8 +1235,7 @@ dependencies = [
 [[package]]
 name = "evm-gasometer"
 version = "0.26.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "463412356790c5e34e8a13cd23ba06284d9afa999e82e8c64497aed2ee625375"
+source = "git+https://github.com/PureStake/evm?branch=jeremy-evm-hook#a36d6129491e0d057559a871bc92d2db96aa9105"
 dependencies = [
  "evm-core",
  "evm-runtime",
@@ -1248,8 +1245,7 @@ dependencies = [
 [[package]]
 name = "evm-runtime"
 version = "0.26.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c08f510e5535cee2352adb9b93ff24dc80f8ca1bad445a9aa1292ce144b45a1"
+source = "git+https://github.com/PureStake/evm?branch=jeremy-evm-hook#a36d6129491e0d057559a871bc92d2db96aa9105"
 dependencies = [
  "evm-core",
  "primitive-types",
@@ -3929,6 +3925,7 @@ dependencies = [
  "fp-evm",
  "frame-support",
  "frame-system",
+ "lazy_static",
  "pallet-balances",
  "pallet-timestamp",
  "parity-scale-codec",
@@ -3940,6 +3937,8 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "static_type_map",
+ "synctools",
 ]
 
 [[package]]
@@ -7045,6 +7044,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "static_type_map"
+version = "0.1.2"
+source = "git+https://github.com/nanocryk/static_type_map?branch=send_bound#011a8680fd968734b89cf6f14f7a4c84edee84d8"
+dependencies = [
+ "hashbrown",
+]
+
+[[package]]
 name = "statrs"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7259,6 +7266,12 @@ dependencies = [
  "quote",
  "unicode-xid",
 ]
+
+[[package]]
+name = "synctools"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1cf77797be4daff9739707f9e8db8a94ef6f2ec15b06994093616b9b28937161"
 
 [[package]]
 name = "synstructure"
