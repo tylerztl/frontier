@@ -44,7 +44,17 @@ pub struct Runner<T: Config, H: Hook + Send + 'static = ()> {
 }
 
 impl<T: Config, H: Hook + Send + 'static> Runner<T, H> {
-	/// Allow to set the hook that will be used by the EVM.
+	/// Allow to set the hook that will be used by the EVM to implement step by
+	/// step inspection of the EVM state.
+	///
+	/// # Warnings
+	/// - The hook should be None in the main block creation/import pipeline. Any
+	///   code providing a hook to inspect the EVM should reset it to None after
+	///   the inspection.
+	/// - Some hook functions are called for each opcode reached by the EVM. Thus
+	///   its code should be performant.
+	/// - No weight measurement is provided. The hook main purpose is to allow
+	///   implementation of EVM tracing when replaying transactions.
 	pub fn set_hook(
 		new_hook: Option<H>,
 	) -> Option<H> {
@@ -108,7 +118,7 @@ impl<T: Config, H: Hook + Send + 'static> Runner<T, H> {
 		let hook = executor.set_hook(hook);
 
 		let (reason, retv) = f(&mut executor);
-		
+
 		let hook = executor.set_hook(hook);
 		let _ = Self::set_hook(hook);
 
