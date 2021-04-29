@@ -58,6 +58,8 @@ impl<T: Config, H: Hook + Send + 'static> Runner<T, H> {
 	pub fn set_hook(
 		new_hook: Option<H>,
 	) -> Option<H> {
+		// Statics cannot be generic over H, so we use a unique static with a map mapping
+		// the H type to an H value.
 		lazy_static! {
 			static ref HOOKS: RwLock<SendStaticTypeMap> = RwLock::new(SendStaticTypeMap::new());
 		};
