@@ -31,7 +31,7 @@ evm-runtime = { git = "https://github.com/PureStake/evm", branch = "jeremy-evm-h
 evm-gasometer = { git = "https://github.com/PureStake/evm", branch = "jeremy-evm-hook", default-features = false }
 sha3 = { version = "0.8", default-features = false }
 lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
-static_type_map = { git = "https://github.com/nanocryk/static_type_map", branch = "send_bound", features = ["no_std"] }
+static_type_map = { version = "0.2.0", features = ["no_std"] }
 synctools = { version = "0.2.0", default-features = false }
 
 [features]
