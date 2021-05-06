@@ -19,7 +19,6 @@
 
 use synctools::rwlock::RwLock;
 use static_type_map::SendStaticTypeMap;
-use lazy_static::lazy_static;
 use sp_std::{marker::PhantomData, vec::Vec, boxed::Box, mem, collections::btree_set::BTreeSet};
 use sp_core::{U256, H256, H160};
 use sp_runtime::traits::UniqueSaturatedInto;
@@ -58,13 +57,43 @@ impl<T: Config, H: Hook + Send + 'static> Runner<T, H> {
 	pub fn set_hook(
 		new_hook: Option<H>,
 	) -> Option<H> {
+		Self::set_hook_inner(new_hook)
+	}
+	
+	#[cfg(not(feature = "std"))]
+	pub fn set_hook_inner(
+		new_hook: Option<H>,
+	) -> Option<H> {
+		use lazy_static::lazy_static;
+		
 		// Statics cannot be generic over H, so we use a unique static with a map mapping
 		// the H type to an H value.
 		lazy_static! {
 			static ref HOOKS: RwLock<SendStaticTypeMap> = RwLock::new(SendStaticTypeMap::new());
-		};
-
+		}
+		
+		log::trace!(target: "evm", "Getting hook lock (no std)");
 		let mut map = HOOKS.write();
+		map.insert(new_hook).flatten()
+	}
+
+	#[cfg(feature = "std")]
+	pub fn set_hook_inner(
+		new_hook: Option<H>,
+	) -> Option<H> {
+		use ref_thread_local::{ref_thread_local, RefThreadLocal};
+
+		// In Native execution multiple threads could use the hook, thus
+		// we need thread local storage.
+		// Statics cannot be generic over H, so we use a unique static with a map mapping
+		// the H type to an H value.
+		ref_thread_local!{
+			static managed HOOKS: RwLock<SendStaticTypeMap> = RwLock::new(SendStaticTypeMap::new());
+		}
+
+		log::trace!(target: "evm", "Getting hook lock (std)");
+		let hooks = HOOKS.borrow();
+		let mut map = hooks.write();
 		map.insert(new_hook).flatten()
 	}
 
