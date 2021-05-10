@@ -202,7 +202,7 @@ impl<T: Config, H: Hook + Send + 'static> Runner<T, H> {
 	}
 
 	#[cfg(feature = "hook")]
-	fn hook_pre<'config, S>(
+	fn hook_pre<'config, S: StackStateT<'config>>(
 		executor: &mut StackExecutor<'config, S, H>
 	) {
 		let hook = Self::set_hook(None);
@@ -210,14 +210,14 @@ impl<T: Config, H: Hook + Send + 'static> Runner<T, H> {
 	}
 
 	#[cfg(not(feature = "hook"))]
-	fn hook_pre<'config, S>(
+	fn hook_pre<'config, S: StackStateT<'config>>(
 		_executor: &mut StackExecutor<'config, S, H>
 	) {
 		
 	}
 
 	#[cfg(feature = "hook")]
-	fn hook_post<'config, S>(
+	fn hook_post<'config, S: StackStateT<'config>>(
 		executor: &mut StackExecutor<'config, S, H>
 	) {
 		let hook = executor.set_hook(None);
@@ -225,7 +225,7 @@ impl<T: Config, H: Hook + Send + 'static> Runner<T, H> {
 	}
 
 	#[cfg(not(feature = "hook"))]
-	fn hook_post<'config, S>(
+	fn hook_post<'config, S: StackStateT<'config>>(
 		_executor: &mut StackExecutor<'config, S, H>
 	) {
 		
