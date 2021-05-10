@@ -1218,7 +1218,7 @@ checksum = "f7531096570974c3a9dcf9e4b8e1cede1ec26cf5046219fb3b9d897503b9be59"
 [[package]]
 name = "evm"
 version = "0.26.0"
-source = "git+https://github.com/PureStake/evm?branch=jeremy-evm-hook#5d62b40b6b8ba8072a9f786d1cca44b5e231d414"
+source = "git+https://github.com/PureStake/evm?branch=jeremy-evm-hook#a7eb24c29d07a8a441e6b3881230a96a3f30e835"
 dependencies = [
  "ethereum",
  "evm-core",
@@ -1235,7 +1235,7 @@ dependencies = [
 [[package]]
 name = "evm-core"
 version = "0.26.0"
-source = "git+https://github.com/PureStake/evm?branch=jeremy-evm-hook#5d62b40b6b8ba8072a9f786d1cca44b5e231d414"
+source = "git+https://github.com/PureStake/evm?branch=jeremy-evm-hook#a7eb24c29d07a8a441e6b3881230a96a3f30e835"
 dependencies = [
  "funty",
  "parity-scale-codec",
@@ -1246,7 +1246,7 @@ dependencies = [
 [[package]]
 name = "evm-gasometer"
 version = "0.26.0"
-source = "git+https://github.com/PureStake/evm?branch=jeremy-evm-hook#5d62b40b6b8ba8072a9f786d1cca44b5e231d414"
+source = "git+https://github.com/PureStake/evm?branch=jeremy-evm-hook#a7eb24c29d07a8a441e6b3881230a96a3f30e835"
 dependencies = [
  "evm-core",
  "evm-runtime",
@@ -1256,7 +1256,7 @@ dependencies = [
 [[package]]
 name = "evm-runtime"
 version = "0.26.0"
-source = "git+https://github.com/PureStake/evm?branch=jeremy-evm-hook#5d62b40b6b8ba8072a9f786d1cca44b5e231d414"
+source = "git+https://github.com/PureStake/evm?branch=jeremy-evm-hook#a7eb24c29d07a8a441e6b3881230a96a3f30e835"
 dependencies = [
  "evm-core",
  "primitive-types",

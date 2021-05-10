@@ -54,13 +54,14 @@ impl<T: Config, H: Hook + Send + 'static> Runner<T, H> {
 	///   its code should be performant.
 	/// - No weight measurement is provided. The hook main purpose is to allow
 	///   implementation of EVM tracing when replaying transactions.
+	#[cfg(feature = "hook")]
 	pub fn set_hook(
 		new_hook: Option<H>,
 	) -> Option<H> {
 		Self::set_hook_inner(new_hook)
 	}
 	
-	#[cfg(not(feature = "std"))]
+	#[cfg(all(feature = "hook", not(feature = "std")))]
 	pub fn set_hook_inner(
 		new_hook: Option<H>,
 	) -> Option<H> {
@@ -77,7 +78,7 @@ impl<T: Config, H: Hook + Send + 'static> Runner<T, H> {
 		map.insert(new_hook).flatten()
 	}
 
-	#[cfg(feature = "std")]
+	#[cfg(all(feature = "hook", feature = "std"))]
 	pub fn set_hook_inner(
 		new_hook: Option<H>,
 	) -> Option<H> {
@@ -91,7 +92,7 @@ impl<T: Config, H: Hook + Send + 'static> Runner<T, H> {
 			static managed HOOKS: RwLock<SendStaticTypeMap> = RwLock::new(SendStaticTypeMap::new());
 		}
 
-		log::trace!(target: "evm", "Getting hook lock (std)");
+		log::trace!(target: "evm", "Getting hook lock (std) in thread {:?}", std::thread::current().id());
 		let hooks = HOOKS.borrow();
 		let mut map = hooks.write();
 		map.insert(new_hook).flatten()
@@ -121,15 +122,7 @@ impl<T: Config, H: Hook + Send + 'static> Runner<T, H> {
 		let vicinity = Vicinity {
 			gas_price,
 			origin: source,
-		};
-
-		let metadata = StackSubstateMetadata::new(gas_limit, &config);
-		let state = SubstrateStackState::new(&vicinity, metadata);
-		let mut executor = StackExecutor::<'_, _, H>::new_with_precompile(
-			state,
-			config,
-			T::Precompiles::execute,
-		);
+		};		
 
 		let total_fee = gas_price.checked_mul(U256::from(gas_limit))
 			.ok_or(Error::<T>::FeeOverflow)?;
@@ -145,13 +138,17 @@ impl<T: Config, H: Hook + Send + 'static> Runner<T, H> {
 		let fee = T::OnChargeTransaction::withdraw_fee(&source, total_fee)?;
 
 		// Execute the EVM call.
-		let hook = Self::set_hook(None);
-		let hook = executor.set_hook(hook);
+		let metadata = StackSubstateMetadata::new(gas_limit, &config);
+		let state = SubstrateStackState::new(&vicinity, metadata);
+		let mut executor = StackExecutor::<'_, _, H>::new_with_precompile(
+			state,
+			config,
+			T::Precompiles::execute,
+		);
 
+		Self::hook_pre(&mut executor);
 		let (reason, retv) = f(&mut executor);
-
-		let hook = executor.set_hook(hook);
-		let _ = Self::set_hook(hook);
+		Self::hook_post(&mut executor);
 
 		let used_gas = U256::from(executor.used_gas());
 		let actual_fee = executor.fee(gas_price);
@@ -202,6 +199,36 @@ impl<T: Config, H: Hook + Send + 'static> Runner<T, H> {
 			used_gas,
 			logs: state.substate.logs,
 		})
+	}
+
+	#[cfg(feature = "hook")]
+	fn hook_pre<'config, S>(
+		executor: &mut StackExecutor<'config, S, H>
+	) {
+		let hook = Self::set_hook(None);
+		let _ = executor.set_hook(hook);
+	}
+
+	#[cfg(not(feature = "hook"))]
+	fn hook_pre<'config, S>(
+		_executor: &mut StackExecutor<'config, S, H>
+	) {
+		
+	}
+
+	#[cfg(feature = "hook")]
+	fn hook_post<'config, S>(
+		executor: &mut StackExecutor<'config, S, H>
+	) {
+		let hook = executor.set_hook(None);
+		let _ = Self::set_hook(hook);
+	}
+
+	#[cfg(not(feature = "hook"))]
+	fn hook_post<'config, S>(
+		_executor: &mut StackExecutor<'config, S, H>
+	) {
+		
 	}
 }
 

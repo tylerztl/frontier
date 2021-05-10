@@ -58,3 +58,4 @@ std = [
 	"pallet-timestamp/std",
 	"ref_thread_local"
 ]
+hook = ["evm/hook"]
