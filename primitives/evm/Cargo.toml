@@ -16,7 +16,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 sp-core = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.2", default-features = false }
 sp-std = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.2", default-features = false }
 serde = { version = "1.0.101", optional = true, features = ["derive"] }
-codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
+codec = { package = "parity-scale-codec", version = "2.1.0", default-features = false }
 evm = { version = "0.25.0", default-features = false, features = ["with-codec"] }
 impl-trait-for-tuples = "0.1"
 
