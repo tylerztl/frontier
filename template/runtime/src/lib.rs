@@ -189,6 +189,7 @@ impl frame_system::Config for Runtime {
 	type SystemWeightInfo = ();
 	/// This is used as an identifier of the chain. 42 is the generic substrate prefix.
 	type SS58Prefix = SS58Prefix;
+	type OnSetCode = ();
 }
 
 impl pallet_aura::Config for Runtime {
@@ -229,14 +230,19 @@ impl pallet_timestamp::Config for Runtime {
 	type OnTimestampSet = ();
 }
 
+impl pallet_randomness_collective_flip::Config for Runtime {}
+
 parameter_types! {
 	pub const ExistentialDeposit: u128 = 500;
 	// For weight estimation, we assume that the most locks on an individual account will be 50.
 	// This number may need to be adjusted in the future if this assumption no longer holds true.
 	pub const MaxLocks: u32 = 50;
+	pub const MaxReserves: u32 = 50;
 }
 
 impl pallet_balances::Config for Runtime {
+	type MaxReserves = MaxReserves;
+	type ReserveIdentifier = [u8; 4];
 	type MaxLocks = MaxLocks;
 	/// The type for recording an account's balance.
 	type Balance = Balance;
@@ -271,7 +277,7 @@ parameter_types! {
 }
 
 impl pallet_evm::Config for Runtime {
-	type FeeCalculator = pallet_dynamic_fee::Module<Self>;
+	type FeeCalculator = ();//pallet_dynamic_fee::Module<Self>;
 	type GasWeightMapping = ();
 	type CallOrigin = EnsureAddressTruncated;
 	type WithdrawOrigin = EnsureAddressTruncated;
@@ -318,10 +324,10 @@ frame_support::parameter_types! {
 	pub BoundDivision: U256 = U256::from(1024);
 }
 
-impl pallet_dynamic_fee::Config for Runtime {
-	type Event = Event;
-	type MinGasPriceBoundDivisor = BoundDivision;
-}
+// impl pallet_dynamic_fee::Config for Runtime {
+// 	type Event = Event;
+// 	type MinGasPriceBoundDivisor = BoundDivision;
+// }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
@@ -330,17 +336,17 @@ construct_runtime!(
 		NodeBlock = opaque::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
-		System: frame_system::{Module, Call, Config, Storage, Event<T>},
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Call, Storage},
-		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent},
-		Aura: pallet_aura::{Module, Config<T>},
-		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event},
-		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-		TransactionPayment: pallet_transaction_payment::{Module, Storage},
-		Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
-		Ethereum: pallet_ethereum::{Module, Call, Storage, Event, Config, ValidateUnsigned},
-		EVM: pallet_evm::{Module, Config, Call, Storage, Event<T>},
-		DynamicFee: pallet_dynamic_fee::{Module, Call, Storage, Config, Event, Inherent},
+		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Call, Storage},
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+		Aura: pallet_aura::{Pallet, Config<T>},
+		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
+		Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
+		Ethereum: pallet_ethereum::{Pallet, Call, Storage, Event, Config, ValidateUnsigned},
+		EVM: pallet_evm::{Pallet, Config, Call, Storage, Event<T>},
+		// DynamicFee: pallet_dynamic_fee::{Pallet, Call, Storage, Config, Event, Inherent},
 	}
 );
 
@@ -384,13 +390,13 @@ pub type SignedExtra = (
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Call, SignedExtra>;
-/// Executive: handles dispatch to the various modules.
+/// Executive: handles dispatch to the various Pallets.
 pub type Executive = frame_executive::Executive<
 	Runtime,
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllModules
+	AllPallets
 >;
 
 impl_runtime_apis! {
@@ -433,10 +439,6 @@ impl_runtime_apis! {
 		) -> sp_inherents::CheckInherentsResult {
 			data.check_extrinsics(&block)
 		}
-
-		fn random_seed() -> <Block as BlockT>::Hash {
-			RandomnessCollectiveFlip::random_seed().0
-		}
 	}
 
 	impl sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block> for Runtime {
@@ -455,8 +457,8 @@ impl_runtime_apis! {
 	}
 
 	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
-		fn slot_duration() -> u64 {
-			Aura::slot_duration()
+		fn slot_duration() -> sp_consensus_aura::SlotDuration {
+			sp_consensus_aura::SlotDuration::from_millis(Aura::slot_duration())
 		}
 
 		fn authorities() -> Vec<AuraId> {
