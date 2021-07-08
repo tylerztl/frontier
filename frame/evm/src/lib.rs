@@ -568,7 +568,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		<AccountCodes<T>>::remove(address);
-		<AccountStorages<T>>::remove_prefix(address);
+		<AccountStorages<T>>::remove_prefix(address, None);
 	}
 
 	/// Create an account.
