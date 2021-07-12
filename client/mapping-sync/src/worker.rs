@@ -78,8 +78,10 @@ impl<Block: BlockT, C, B> Stream for MappingSyncWorker<Block, C, B> where
 		loop {
 			match Stream::poll_next(Pin::new(&mut self.import_notifications), cx) {
 				Poll::Pending => break,
-				Poll::Ready(Some(_)) => {
-					fire = true;
+				Poll::Ready(Some(notification)) => {
+					if notification.is_new_best {
+						fire = true;
+					}
 				},
 				Poll::Ready(None) => return Poll::Ready(None),
 			}
