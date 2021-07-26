@@ -43,4 +43,5 @@ libsecp256k1 = "0.3"
 rand = "0.7"
 
 [features]
+default = ["rpc_binary_search_estimate"]
 rpc_binary_search_estimate = []

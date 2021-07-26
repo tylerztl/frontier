@@ -21,7 +21,7 @@ use ethereum::{
 	Block as EthereumBlock, Transaction as EthereumTransaction
 };
 use ethereum_types::{H160, H256, H64, U256, U64, H512};
-use jsonrpc_core::{BoxFuture, Result, ErrorCode, futures::future::{self, Future}};
+use jsonrpc_core::{BoxFuture, Result, Error, ErrorCode, futures::future::{self, Future}};
 use futures::{StreamExt, future::TryFutureExt};
 use sp_runtime::{
 	traits::{Block as BlockT, UniqueSaturatedInto, Zero, One, Saturating, BlakeTwo256, NumberFor},
@@ -887,53 +887,7 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 
 			Ok(used_gas)
 		};
-		if cfg!(feature = "rpc_binary_search_estimate") {
-			let mut lower = U256::from(21_000);
-			// TODO: get a good upper limit, but below U64::max to operation overflow
-			let mut upper = U256::from(1_000_000_000);
-			let mut mid = upper;
-			let mut best = mid;
-			let mut old_best: U256;
-
-			// if the gas estimation depends on the gas limit, then we want to binary
-			// search until the change is under some threshold. but if not dependent,
-			// we want to stop immediately.
-			let mut change_pct = U256::from(100);
-			let threshold_pct = U256::from(10);
-
-			// invariant: lower <= mid <= upper
-			while change_pct > threshold_pct {
-				let mut test_request = request.clone();
-				test_request.gas = Some(mid);
-				match calculate_gas_used(test_request) {
-					// if Ok -- try to reduce the gas used
-					Ok(used_gas) => {
-						old_best = best;
-						best = used_gas;
-						change_pct = (U256::from(100) * (old_best - best)) / old_best;
-						upper = mid;
-						mid = (lower + upper + 1) / 2;
-					}
-
-					Err(err) => {
-						// if Err == OutofGas, we need more gas
-						if err.code == ErrorCode::ServerError(0) {
-							lower = mid;
-							mid = (lower + upper + 1) / 2;
-							if mid == lower {
-								break;
-							}
-						} else {
-							// Other errors, return directly
-							return Err(err);
-						}
-					}
-				}
-			}
-			Ok(best)
-		} else {
-			calculate_gas_used(request)
-		}
+		estimate_gas_binary_search(calculate_gas_used, request)
 	}
 
 	fn transaction_by_hash(&self, hash: H256) -> Result<Option<Transaction>> {
@@ -1641,6 +1595,83 @@ where
 					filter_pool.remove(&key);
 				}
 			}
+		}
+	}
+}
+
+fn estimate_gas_binary_search<F: FnMut(CallRequest) -> Result<U256>>(mut calculate_gas_used: F, request: CallRequest) -> Result<U256> {
+	if cfg!(feature = "rpc_binary_search_estimate") {
+		let mut lower = U256::from(21_000);
+		// TODO: get a good upper limit, but below U64::max to operation overflow
+		let mut upper = U256::from(1_000_000_000);
+		let mut mid = upper;
+		let mut best = mid;
+		let mut old_best: U256;
+
+		// if the gas estimation depends on the gas limit, then we want to binary
+		// search until the change is under some threshold. but if not dependent,
+		// we want to stop immediately.
+		let mut change_pct = U256::from(100);
+		let threshold_pct = U256::from(10);
+
+		// invariant: lower <= mid <= upper
+		while change_pct > threshold_pct {
+			let mut test_request = request.clone();
+			test_request.gas = Some(mid);
+			match calculate_gas_used(test_request) {
+				// if Ok -- try to reduce the gas used
+				Ok(used_gas) => {
+					old_best = best;
+					best = used_gas;
+					change_pct = (U256::from(100) * (old_best - best)) / old_best;
+					println!("(try, old_best, best, change_pct)=({}; {}; {}; {})", mid, old_best, best, change_pct);
+					upper = mid; // TODO: change by used_gas
+					mid = (lower + upper + 1) / 2;
+				}
+
+				Err(err) => {
+					// if Err == OutofGas, we need more gas
+					if err.code == ErrorCode::ServerError(0) {
+						lower = mid;
+						mid = (lower + upper + 1) / 2;
+						println!("OutofGas (try, new_lower, new_mid, upper)=({}; {}; {}; {})", lower, lower, mid, upper);
+						/*if mid == lower {
+							break;
+						}*/
+					} else {
+						// Other errors, return directly
+						return Err(err);
+					}
+				}
+			}
+		}
+		Ok(best)
+	} else {
+		calculate_gas_used(request)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	fn out_of_gas() -> Error {
+		Error {
+			code: ErrorCode::ServerError(0),
+    		message: String::new(),
+    		data: None,
+		}
+	}
+
+	#[test]
+	fn test_estimate_gas_binary_search() {
+		let calculate_gas_used = |_req: CallRequest| {
+			Err(out_of_gas())
+		};
+
+		match estimate_gas_binary_search(calculate_gas_used, Default::default()) {
+			Ok(gas) => println!("{}", gas),
+			Err(e) => println!("{:?}", e),
 		}
 	}
 }
