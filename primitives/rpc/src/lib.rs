@@ -17,10 +17,11 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_core::{H160, H256, U256};
-use ethereum::{Log, Block as EthereumBlock};
+use codec::{Decode, Encode};
+use ethereum::{Block as EthereumBlock, Log};
 use ethereum_types::Bloom;
-use codec::{Encode, Decode};
+use sp_core::{H160, H256, U256};
+use sp_runtime::traits::Block as BlockT;
 use sp_std::vec::Vec;
 
 #[derive(Eq, PartialEq, Clone, Encode, Decode, sp_runtime::RuntimeDebug)]
@@ -64,6 +65,7 @@ sp_api::decl_runtime_apis! {
 		/// For a given account address and index, returns pallet_evm::AccountStorages.
 		fn storage_at(address: H160, index: U256) -> H256;
 		/// Returns a frame_ethereum::call response. If `estimate` is true,
+		#[skip_initialize_block]
 		fn call(
 			from: H160,
 			to: H160,
@@ -75,6 +77,7 @@ sp_api::decl_runtime_apis! {
 			estimate: bool,
 		) -> Result<fp_evm::CallInfo, sp_runtime::DispatchError>;
 		/// Returns a frame_ethereum::create response.
+		#[skip_initialize_block]
 		fn create(
 			from: H160,
 			data: Vec<u8>,
@@ -96,6 +99,10 @@ sp_api::decl_runtime_apis! {
 			Option<Vec<ethereum::Receipt>>,
 			Option<Vec<TransactionStatus>>
 		);
+		/// Receives a `Vec<OpaqueExtrinsic>` and filters all the ethereum transactions.
+		fn extrinsic_filter(
+			xts: Vec<<Block as BlockT>::Extrinsic>,
+		) -> Vec<ethereum::Transaction>;
 	}
 }
 

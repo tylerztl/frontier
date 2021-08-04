@@ -1,6 +1,6 @@
-use structopt::StructOpt;
 #[cfg(feature = "manual-seal")]
 use structopt::clap::arg_enum;
+use structopt::StructOpt;
 
 #[cfg(feature = "manual-seal")]
 arg_enum! {
@@ -76,4 +76,8 @@ pub enum Subcommand {
 
 	/// Revert the chain to a previous state.
 	Revert(sc_cli::RevertCmd),
+
+	/// The custom benchmark subcommmand benchmarking runtime pallets.
+	#[structopt(name = "benchmark", about = "Benchmark runtime pallets.")]
+	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 }
