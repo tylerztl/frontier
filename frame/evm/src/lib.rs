@@ -563,7 +563,7 @@ impl<T: Config> Module<T> {
 		}
 
 		AccountCodes::remove(address);
-		AccountStorages::remove_prefix(address);
+		AccountStorages::remove_prefix(address, None);
 	}
 
 	/// Create an account.
@@ -676,6 +676,7 @@ where
 			// merge the imbalance caused by paying the fees and refunding parts of it again.
 			let adjusted_paid = paid
 				.offset(refund_imbalance)
+				.same()
 				.map_err(|_| Error::<T>::BalanceLow)?;
 			OU::on_unbalanced(adjusted_paid);
 		}

@@ -74,12 +74,15 @@ impl frame_system::Config for Test {
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
+	type OnSetCode = ();
 }
 
 parameter_types! {
 	pub const ExistentialDeposit: u64 = 0;
 }
 impl pallet_balances::Config for Test {
+	type MaxReserves = ();
+	type ReserveIdentifier = ();
 	type MaxLocks = ();
 	type Balance = u64;
 	type DustRemoval = ();
