@@ -228,7 +228,7 @@ pub struct SubstrateBlockHashMapping<T>(sp_std::marker::PhantomData<T>);
 impl<T: Config> BlockHashMapping for SubstrateBlockHashMapping<T> {
 	fn block_hash(number: u32) -> H256 {
 		let number = T::BlockNumber::from(number);
-		H256::from_slice(frame_system::Module::<T>::block_hash(number).as_ref())
+		H256::from_slice(frame_system::Pallet::<T>::block_hash(number).as_ref())
 	}
 }
 
@@ -325,7 +325,7 @@ decl_storage! {
 				// ASSUME: in one single EVM transaction, the nonce will not increase more than
 				// `u128::max_value()`.
 				for _ in 0..account.nonce.low_u128() {
-					frame_system::Module::<T>::inc_account_nonce(&account_id);
+					frame_system::Pallet::<T>::inc_account_nonce(&account_id);
 				}
 
 				T::Currency::deposit_creating(
@@ -559,7 +559,7 @@ impl<T: Config> Module<T> {
 	pub fn remove_account(address: &H160) {
 		if AccountCodes::contains_key(address) {
 			let account_id = T::AddressMapping::into_account_id(*address);
-			let _ = frame_system::Module::<T>::dec_consumers(&account_id);
+			let _ = frame_system::Pallet::<T>::dec_consumers(&account_id);
 		}
 
 		AccountCodes::remove(address);
@@ -574,7 +574,7 @@ impl<T: Config> Module<T> {
 
 		if !AccountCodes::contains_key(&address) {
 			let account_id = T::AddressMapping::into_account_id(address);
-			let _ = frame_system::Module::<T>::inc_consumers(&account_id);
+			let _ = frame_system::Pallet::<T>::inc_consumers(&account_id);
 		}
 
 		AccountCodes::insert(address, code);
@@ -584,7 +584,7 @@ impl<T: Config> Module<T> {
 	pub fn account_basic(address: &H160) -> Account {
 		let account_id = T::AddressMapping::into_account_id(*address);
 
-		let nonce = frame_system::Module::<T>::account_nonce(&account_id);
+		let nonce = frame_system::Pallet::<T>::account_nonce(&account_id);
 		let balance = T::Currency::free_balance(&account_id);
 
 		Account {
@@ -595,7 +595,7 @@ impl<T: Config> Module<T> {
 
 	/// Get the author using the FindAuthor trait.
 	pub fn find_author() -> H160 {
-		let digest = <frame_system::Module<T>>::digest();
+		let digest = <frame_system::Pallet::<T>>::digest();
 		let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
 
 		T::FindAuthor::find_author(pre_runtime_digests).unwrap_or_default()

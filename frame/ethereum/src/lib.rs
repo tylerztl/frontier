@@ -161,10 +161,10 @@ decl_module! {
 
 		fn on_finalize(n: T::BlockNumber) {
 			<Module<T>>::store_block(
-				fp_consensus::find_pre_log(&frame_system::Module::<T>::digest()).is_err(),
+				fp_consensus::find_pre_log(&frame_system::Pallet::<T>::digest()).is_err(),
 				U256::from(
 					UniqueSaturatedInto::<u128>::unique_saturated_into(
-						frame_system::Module::<T>::block_number()
+						frame_system::Pallet::<T>::block_number()
 					)
 				),
 			);
@@ -182,7 +182,7 @@ decl_module! {
 		fn on_initialize(_n: T::BlockNumber) -> Weight {
 			Pending::kill();
 
-			if let Ok(log) = fp_consensus::find_pre_log(&frame_system::Module::<T>::digest()) {
+			if let Ok(log) = fp_consensus::find_pre_log(&frame_system::Pallet::<T>::digest()) {
 				let PreLog::Block(block) = log;
 
 				for transaction in block.transactions {
@@ -238,7 +238,7 @@ impl<T: Config> frame_support::unsigned::ValidateUnsigned for Module<T> {
 				.into();
 			}
 
-			let account_data = pallet_evm::Module::<T>::account_basic(&origin);
+			let account_data = pallet_evm::Pallet::<T>::account_basic(&origin);
 
 			if transaction.nonce < account_data.nonce {
 				return InvalidTransaction::Stale.into();
@@ -305,7 +305,7 @@ impl<T: Config> Module<T> {
 			ethereum::util::ordered_trie_root(receipts.iter().map(|r| rlp::encode(r)));
 		let partial_header = ethereum::PartialHeader {
 			parent_hash: Self::current_block_hash().unwrap_or_default(),
-			beneficiary: pallet_evm::Module::<T>::find_author(),
+			beneficiary: pallet_evm::Pallet::<T>::find_author(),
 			state_root: T::StateRoot::get(),
 			receipts_root,
 			logs_bloom,
@@ -317,7 +317,7 @@ impl<T: Config> Module<T> {
 				.into_iter()
 				.fold(U256::zero(), |acc, r| acc + r.used_gas),
 			timestamp: UniqueSaturatedInto::<u64>::unique_saturated_into(
-				pallet_timestamp::Module::<T>::get(),
+				pallet_timestamp::Pallet::<T>::get(),
 			),
 			extra_data: Vec::new(),
 			mix_hash: H256::default(),
@@ -335,7 +335,7 @@ impl<T: Config> Module<T> {
 				FRONTIER_ENGINE_ID,
 				PostLog::Hashes(fp_consensus::Hashes::from_block(block)).encode(),
 			);
-			frame_system::Module::<T>::deposit_log(digest.into());
+			frame_system::Pallet::<T>::deposit_log(digest.into());
 		}
 	}
 
@@ -350,7 +350,7 @@ impl<T: Config> Module<T> {
 
 	fn do_transact(transaction: ethereum::Transaction) -> DispatchResultWithPostInfo {
 		ensure!(
-			fp_consensus::find_pre_log(&frame_system::Module::<T>::digest()).is_err(),
+			fp_consensus::find_pre_log(&frame_system::Pallet::<T>::digest()).is_err(),
 			Error::<T>::PreLogExists,
 		);
 

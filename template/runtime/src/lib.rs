@@ -285,7 +285,7 @@ parameter_types! {
 }
 
 impl pallet_evm::Config for Runtime {
-	type FeeCalculator = pallet_dynamic_fee::Module<Self>;
+	type FeeCalculator = pallet_dynamic_feePallet::<Self>;
 	type GasWeightMapping = ();
 	type BlockHashMapping = pallet_ethereum::EthereumBlockHashMapping;
 	type CallOrigin = EnsureAddressTruncated;
@@ -496,7 +496,7 @@ impl_runtime_apis! {
 		}
 
 		fn author() -> H160 {
-			<pallet_evm::Module<Runtime>>::find_author()
+			<pallet_evmPallet::<Runtime>>::find_author()
 		}
 
 		fn storage_at(address: H160, index: U256) -> H256 {
@@ -660,7 +660,7 @@ impl_runtime_apis! {
 			config: frame_benchmarking::BenchmarkConfig
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, sp_runtime::RuntimeString> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
-			use pallet_evm::Module as PalletEvmBench;
+			use pallet_evmPallet:: as PalletEvmBench;
 			impl frame_system_benchmarking::Config for Runtime {}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![];

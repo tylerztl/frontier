@@ -120,8 +120,8 @@ impl FindAuthor<H160> for FindAuthorTruncated {
 	}
 }
 
-type System = frame_system::Module<Test>;
-type Balances = pallet_balances::Module<Test>;
+type System = frame_system::Pallet::<Test>;
+type Balances = pallet_balances::Pallet::<Test>;
 
 impl Config for Test {
 	type FeeCalculator = FixedGasPrice;

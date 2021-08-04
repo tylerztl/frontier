@@ -23,7 +23,7 @@ use crate::mock::*;
 use frame_support::assert_ok;
 use std::{collections::BTreeMap, str::FromStr};
 
-type Balances = pallet_balances::Module<Test>;
+type Balances = pallet_balances::Pallet::<Test>;
 type EVM = Module<Test>;
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
