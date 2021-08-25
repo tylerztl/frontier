@@ -19,7 +19,7 @@ use crate::{
 	error_on_execution_failure, frontier_backend_client, internal_err, public_key, EthSigner,
 };
 use ethereum::{BlockV0 as EthereumBlock, TransactionV0 as EthereumTransaction};
-use ethereum_types::{H160, H256, H512, H64, U256, U64};
+use ethereum_types::{Bloom, H160, H256, H512, H64, U256, U64};
 use fc_rpc_core::types::{
 	Block, BlockNumber, BlockTransactions, Bytes, CallRequest, Filter, FilterChanges, FilterPool,
 	FilterPoolItem, FilterType, FilteredParams, Header, Index, Log, PeerCount, PendingTransaction,
@@ -31,7 +31,7 @@ use fc_rpc_core::{
 };
 use fp_rpc::{ConvertTransaction, EthereumRuntimeRPCApi, TransactionStatus};
 use futures::{future::TryFutureExt, StreamExt};
-use jsonrpc_core::{futures::future, BoxFuture, ErrorCode, Result};
+use jsonrpc_core::{futures::future, BoxFuture, ErrorCode, Result, Error as RpcError};
 use sc_client_api::{
 	backend::{AuxStore, Backend, StateBackend, StorageProvider},
 	client::BlockchainEvents,
@@ -50,13 +50,20 @@ use std::{
 	marker::PhantomData,
 	sync::{Arc, Mutex},
 	time,
+	hash::Hash,
 };
+use lru::LruCache;
 
 use crate::overrides::OverrideHandle;
 use codec::{self, Decode, Encode};
 pub use fc_rpc_core::{EthApiServer, EthFilterApiServer, NetApiServer, Web3ApiServer};
 use pallet_ethereum::EthereumStorageSchema;
 
+pub type BloomCache<B>
+where
+	B: BlockT,
+	NumberFor<B>: Hash + Eq,
+= LruCache<NumberFor<B>, Bloom>;
 pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT> {
 	pool: Arc<P>,
 	client: Arc<C>,
@@ -68,6 +75,7 @@ pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT> {
 	pending_transactions: PendingTransactions,
 	backend: Arc<fc_db::Backend<B>>,
 	max_past_logs: u32,
+	bloom_cache: Arc<Mutex<BloomCache<B>>>,
 	_marker: PhantomData<(B, BE)>,
 }
 
@@ -77,6 +85,7 @@ where
 	C::Api: EthereumRuntimeRPCApi<B>,
 	B: BlockT<Hash = H256> + Send + Sync + 'static,
 	C: Send + Sync + 'static,
+	NumberFor<B>: Hash + Eq,
 {
 	pub fn new(
 		client: Arc<C>,
@@ -89,6 +98,7 @@ where
 		backend: Arc<fc_db::Backend<B>>,
 		is_authority: bool,
 		max_past_logs: u32,
+		bloom_cache: Arc<Mutex<BloomCache<B>>>,
 	) -> Self {
 		Self {
 			client: client.clone(),
@@ -101,6 +111,7 @@ where
 			pending_transactions,
 			backend,
 			max_past_logs,
+			bloom_cache,
 			_marker: PhantomData,
 		}
 	}
@@ -240,6 +251,7 @@ fn filter_range_logs<B: BlockT, C, BE>(
 	client: &C,
 	backend: &fc_db::Backend<B>,
 	overrides: &OverrideHandle<B>,
+	bloom_cache: &Arc<Mutex<BloomCache<B>>>,
 	ret: &mut Vec<Log>,
 	max_past_logs: u32,
 	filter: &Filter,
@@ -254,12 +266,14 @@ where
 	BE::State: StateBackend<BlakeTwo256>,
 	B: BlockT<Hash = H256> + Send + Sync + 'static,
 	C: Send + Sync + 'static,
+	NumberFor<B>: Hash + Eq,
 {
 	// Max request duration of 10 seconds.
 	let max_duration = time::Duration::from_secs(10);
 	let begin_request = time::Instant::now();
 
 	let mut current_number = to;
+	let best_number = client.info().best_number;
 
 	// Pre-calculate BloomInput for reuse.
 	let topics_input = if let Some(_) = &filter.topics {
@@ -317,16 +331,43 @@ where
 			.get(&schema)
 			.unwrap_or(&overrides.fallback);
 
-		let block = handler.current_block(&id);
+		let mut collect_logs = |block| {
+			let statuses = handler.current_transaction_statuses(&id);
+			if let Some(statuses) = statuses {
+				filter_block_logs(ret, filter, block, statuses);
+			}
+		};
 
-		if let Some(block) = block {
-			if FilteredParams::in_bloom(block.header.logs_bloom, &bloom_filter) {
-				let statuses = handler.current_transaction_statuses(&id);
-				if let Some(statuses) = statuses {
-					filter_block_logs(ret, filter, block, statuses);
+		// We can try to use the cache if the current block is finilized.
+		// For non finalized block, we cannot use cache has for a given block number
+		// the block could change, getting the hash require fetching the block data,
+		// which the cache is trying to avoid doing early.
+		if current_number <= best_number {
+			let mut bloom_cache_lock = bloom_cache.lock()
+				.map_err(|_| RpcError::internal_error())?;
+
+			if let Some(&bloom) = bloom_cache_lock.get(&current_number) {
+				core::mem::drop(bloom_cache_lock); // ensure lock is released as soon as possible
+				if FilteredParams::in_bloom(bloom, &bloom_filter) {
+					if let Some(block) = handler.current_block(&id) {
+						collect_logs(block);
+					}
+				}
+			} else if let Some(block) = handler.current_block(&id) {
+				let bloom = block.header.logs_bloom;
+				bloom_cache_lock.put(current_number, bloom);
+				core::mem::drop(bloom_cache_lock); // ensure lock is released as soon as possible
+
+				if FilteredParams::in_bloom(bloom, &bloom_filter) {
+					collect_logs(block);
 				}
 			}
+		} else if let Some(block) = handler.current_block(&id) {
+			if FilteredParams::in_bloom(block.header.logs_bloom, &bloom_filter) {
+				collect_logs(block);
+			}
 		}
+
 		// Check for restrictions
 		if ret.len() as u32 > max_past_logs {
 			return Err(internal_err(format!(
@@ -1358,6 +1399,7 @@ where
 				self.client.as_ref(),
 				self.backend.as_ref(),
 				&self.overrides,
+				&self.bloom_cache,
 				&mut ret,
 				self.max_past_logs,
 				&filter,
@@ -1494,6 +1536,7 @@ pub struct EthFilterApi<B: BlockT, C, BE> {
 	max_stored_filters: usize,
 	overrides: Arc<OverrideHandle<B>>,
 	max_past_logs: u32,
+	bloom_cache: Arc<Mutex<BloomCache<B>>>,
 	_marker: PhantomData<(B, BE)>,
 }
 
@@ -1505,6 +1548,7 @@ where
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
 	C: Send + Sync + 'static,
+	NumberFor<B>: Hash + Eq,
 {
 	pub fn new(
 		client: Arc<C>,
@@ -1513,6 +1557,7 @@ where
 		max_stored_filters: usize,
 		overrides: Arc<OverrideHandle<B>>,
 		max_past_logs: u32,
+		bloom_cache: Arc<Mutex<BloomCache<B>>>,
 	) -> Self {
 		Self {
 			client: client.clone(),
@@ -1521,6 +1566,7 @@ where
 			max_stored_filters,
 			overrides,
 			max_past_logs,
+			bloom_cache,
 			_marker: PhantomData,
 		}
 	}
@@ -1535,6 +1581,7 @@ where
 	B: BlockT<Hash = H256> + Send + Sync + 'static,
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
+	NumberFor<B>: Hash + Eq,
 {
 	fn create_filter(&self, filter_type: FilterType) -> Result<U256> {
 		let block_number =
@@ -1672,6 +1719,7 @@ where
 							self.client.as_ref(),
 							self.backend.as_ref(),
 							&self.overrides,
+							&self.bloom_cache,
 							&mut ret,
 							self.max_past_logs,
 							&filter,
@@ -1738,6 +1786,7 @@ where
 							self.client.as_ref(),
 							self.backend.as_ref(),
 							&self.overrides,
+							&self.bloom_cache,
 							&mut ret,
 							self.max_past_logs,
 							&filter,

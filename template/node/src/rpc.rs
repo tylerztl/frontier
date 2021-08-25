@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use fc_rpc::{OverrideHandle, RuntimeApiStorageOverride, SchemaV1Override, StorageOverride};
+use fc_rpc::{OverrideHandle, RuntimeApiStorageOverride, SchemaV1Override, StorageOverride, BloomCache};
 use fc_rpc_core::types::{FilterPool, PendingTransactions};
 use frontier_template_runtime::{opaque::Block, AccountId, Balance, Hash, Index};
 use jsonrpc_pubsub::manager::SubscriptionManager;
@@ -20,7 +20,7 @@ use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_runtime::traits::BlakeTwo256;
-use std::collections::BTreeMap;
+use std::{sync::Mutex, collections::BTreeMap};
 
 /// Light client extra dependencies.
 pub struct LightDeps<C, F, P> {
@@ -127,6 +127,8 @@ where
 		fallback: Box::new(RuntimeApiStorageOverride::new(client.clone())),
 	});
 
+	let bloom_cache = Arc::new(Mutex::new(BloomCache::<Block>::new(1000)));
+
 	io.extend_with(EthApiServer::to_delegate(EthApi::new(
 		client.clone(),
 		pool.clone(),
@@ -138,6 +140,7 @@ where
 		backend.clone(),
 		is_authority,
 		max_past_logs,
+		bloom_cache.clone(),
 	)));
 
 	if let Some(filter_pool) = filter_pool {
@@ -148,6 +151,7 @@ where
 			500 as usize, // max stored filters
 			overrides.clone(),
 			max_past_logs,
+			bloom_cache,
 		)));
 	}
 
