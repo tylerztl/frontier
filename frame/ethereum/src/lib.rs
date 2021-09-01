@@ -227,9 +227,10 @@ impl<T: Config> frame_support::unsigned::ValidateUnsigned for Module<T> {
 				}
 			}
 
-			let origin = Self::recover_signer(&transaction).ok_or_else(|| {
-				InvalidTransaction::Custom(TransactionValidationError::InvalidSignature as u8)
-			})?;
+			let min_gas_price = T::FeeCalculator::min_gas_price();
+			if transaction.gas_price < min_gas_price {
+				return InvalidTransaction::Payment.into();
+			}
 
 			if transaction.gas_limit >= T::BlockGasLimit::get() {
 				return InvalidTransaction::Custom(
@@ -237,6 +238,26 @@ impl<T: Config> frame_support::unsigned::ValidateUnsigned for Module<T> {
 				)
 				.into();
 			}
+
+			// We must ensure a transaction can pay the cost of its data bytes.
+			// If it can't it should not be included in a block.
+			let mut gasometer = evm::gasometer::Gasometer::new(transaction.gas_limit.low_u64(), <T as pallet_evm::Config>::config());
+			let transaction_cost = match transaction.action {
+				TransactionAction::Call(_) => evm::gasometer::call_transaction_cost(&transaction.input),
+				TransactionAction::Create => evm::gasometer::create_transaction_cost(&transaction.input),
+			};
+			if gasometer.record_transaction(transaction_cost).is_err() {
+				return InvalidTransaction::Custom(
+					TransactionValidationError::InvalidGasLimit as u8,
+				)
+				.into();
+			}
+
+			// Recovering the signer is expensive, so we verify requirements that don't
+			// depend on the origin before.
+			let origin = Self::recover_signer(transaction).ok_or_else(|| {
+				InvalidTransaction::Custom(TransactionValidationError::InvalidSignature as u8)
+			})?;
 
 			let account_data = pallet_evm::Pallet::<T>::account_basic(&origin);
 
@@ -247,12 +268,6 @@ impl<T: Config> frame_support::unsigned::ValidateUnsigned for Module<T> {
 			let fee = transaction.gas_price.saturating_mul(transaction.gas_limit);
 			let total_payment = transaction.value.saturating_add(fee);
 			if account_data.balance < total_payment {
-				return InvalidTransaction::Payment.into();
-			}
-
-			let min_gas_price = T::FeeCalculator::min_gas_price();
-
-			if transaction.gas_price < min_gas_price {
 				return InvalidTransaction::Payment.into();
 			}
 
