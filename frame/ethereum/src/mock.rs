@@ -25,10 +25,10 @@ use pallet_evm::{AddressMapping, EnsureAddressTruncated, FeeCalculator};
 use rlp::*;
 use sha3::Digest;
 use sp_core::{H160, H256, U256};
-use sp_runtime::AccountId32;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
+	AccountId32,
 };
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -44,7 +44,7 @@ frame_support::construct_runtime! {
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage},
 		EVM: pallet_evm::{Pallet, Call, Storage, Config, Event<T>},
-		Ethereum: crate::{Pallet, Call, Storage, Event},
+		Ethereum: crate::{Pallet, Call, Storage, Event, Origin},
 	}
 }
 
@@ -162,8 +162,10 @@ impl pallet_evm::Config for Test {
 }
 
 impl crate::Config for Test {
+	type Origin = Origin;
 	type Event = Event;
 	type StateRoot = IntermediateStateRoot;
+	type EthereumTransactionOrigin = crate::EnsureEthereumTransaction;
 }
 
 pub struct AccountInfo {
