@@ -21,22 +21,22 @@ use crate::{
 };
 use ethereum::{BlockV0 as EthereumBlock, TransactionV0 as EthereumTransaction};
 use ethereum_types::{H160, H256, H512, H64, U256, U64};
+use evm::ExitReason;
 use fc_rpc_core::types::{
 	Block, BlockNumber, BlockTransactions, Bytes, CallRequest, Filter, FilterChanges, FilterPool,
 	FilterPoolItem, FilterType, FilteredParams, Header, Index, Log, PeerCount, Receipt, Rich,
 	RichBlock, SyncInfo, SyncStatus, Transaction, TransactionRequest, Work,
 };
-use evm::ExitReason;
 use fc_rpc_core::{
 	EthApi as EthApiT, EthFilterApi as EthFilterApiT, NetApi as NetApiT, Web3Api as Web3ApiT,
 };
 use fp_rpc::{ConvertTransaction, EthereumRuntimeRPCApi, TransactionStatus};
 use futures::{future::TryFutureExt, StreamExt};
-use lru::LruCache;
 use jsonrpc_core::{
 	futures::future::{self, Future},
-	BoxFuture, ErrorCode, Result,
+	BoxFuture, Result,
 };
+use lru::LruCache;
 use sc_client_api::{
 	backend::{AuxStore, Backend, StateBackend, StorageProvider},
 	client::BlockchainEvents,
@@ -1014,11 +1014,7 @@ where
 		}
 
 		// Create a helper to check if a gas allowance results in an executable transaction
-		#[cfg(feature = "rpc_binary_search_estimate")]
-		type TrialResult = Result<bool>;
-		#[cfg(not(feature = "rpc_binary_search_estimate"))]
-		type TrialResult = Result<U256>;
-		let executable = move |request: CallRequest, gas_limit| -> TrialResult {
+		let executable = move |request: CallRequest, gas_limit| -> Result<Option<U256>> {
 			let CallRequest {
 				from,
 				to,
@@ -1076,58 +1072,51 @@ where
 				}
 			};
 
-			#[cfg(not(feature = "rpc_binary_search_estimate"))]
-			{
-				error_on_execution_failure(&exit_reason, &data).map(|()| used_gas)
-			}
-			#[cfg(feature = "rpc_binary_search_estimate")]
-			{
-				match exit_reason {
-					ExitReason::Succeed(_) => Ok(true),
-					ExitReason::Revert(_) | ExitReason::Error(evm::ExitError::OutOfGas) => {
-						Ok(false)
-					}
-					other => error_on_execution_failure(&other, &data).map(|()| true),
-				}
+			match exit_reason {
+				ExitReason::Succeed(_) => Ok(Some(used_gas)),
+				ExitReason::Revert(_) | ExitReason::Error(evm::ExitError::OutOfGas) => Ok(None),
+				other => error_on_execution_failure(&other, &data).map(|()| Some(used_gas)),
 			}
 		};
 
+		// verify that the transaction suceed with highest capacity
+		let cap = highest;
+		let used_gas = executable(request.clone(), highest)?.ok_or(internal_err(format!(
+			"gas required exceeds allowance {}",
+			cap
+		)))?;
+
 		#[cfg(not(feature = "rpc_binary_search_estimate"))]
 		{
-			Ok(executable(request.clone(), highest)?)
+			Ok(used_gas)
 		}
 		#[cfg(feature = "rpc_binary_search_estimate")]
 		{
-			// Execute the binary search and hone in on an executable gas limit
-			const MAX_TRIALS: usize = 6; // With 6 trials we have a precision of 1/2^6 = 1.5625%.
-			const MIN_GAS_PER_TX: U256 = U256([21_000, 0, 0, 0]);
-			let cap = highest;
-			let mut lowest = MIN_GAS_PER_TX;
-			let mut trials_count = 0;
-			while trials_count < MAX_TRIALS && (highest - lowest) > U256::one() {
-				let mid = (highest + lowest) / 2;
+			// Start close to the used gas for faster binary search
+			let mut mid = used_gas * 3;
 
-				if executable(request.clone(), mid)? {
+			// Define the lower bound of the binary search
+			const MIN_GAS_PER_TX: U256 = U256([21_000, 0, 0, 0]);
+			let mut lowest = MIN_GAS_PER_TX;
+
+			// Execute the binary search and hone in on an executable gas limit.
+			let mut previous_highest = highest;
+			while (highest - lowest) > U256::one() {
+				if executable(request.clone(), mid)?.is_some() {
 					highest = mid;
+					// If the variation in the estimate is less than 10%,
+					// then the estimate is considered sufficiently accurate.
+					if (previous_highest - highest) * 10 / previous_highest < U256::one() {
+						return Ok(highest);
+					}
+					previous_highest = highest;
 				} else {
 					lowest = mid;
 				}
-				trials_count += 1;
+				mid = (highest + lowest) / 2;
 			}
 
-			// Reject the transaction as invalid if it still fails at the highest allowance
-			if highest == cap {
-				if executable(request.clone(), highest)? {
-					Ok(highest)
-				} else {
-					Err(internal_err(format!(
-						"gas required exceeds allowance {}",
-						cap
-					)))
-				}
-			} else {
-				Ok(highest)
-			}
+			Ok(highest)
 		}
 	}
 
@@ -1174,14 +1163,15 @@ where
 					})?;
 
 				for txn in ethereum_transactions {
-					let inner_hash = H256::from_slice(Keccak256::digest(&rlp::encode(&txn)).as_slice());
+					let inner_hash =
+						H256::from_slice(Keccak256::digest(&rlp::encode(&txn)).as_slice());
 					if hash == inner_hash {
 						return Ok(Some(transaction_build(txn, None, None)));
 					}
 				}
 				// Unknown transaction.
 				return Ok(None);
-			},
+			}
 		};
 
 		let id = match frontier_backend_client::load_hash::<B>(self.backend.as_ref(), hash)
