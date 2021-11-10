@@ -27,7 +27,7 @@ use sp_runtime::{
 	},
 };
 
-#[derive(PartialEq, Eq, Clone, sp_core::RuntimeDebug)]
+#[derive(PartialEq, Eq, Clone, Decode, Encode, sp_core::RuntimeDebug)]
 pub enum CheckedSignature<AccountId, Extra, SelfContainedSignedInfo> {
 	Signed(AccountId, Extra),
 	Unsigned,
