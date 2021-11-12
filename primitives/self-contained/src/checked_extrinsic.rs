@@ -16,6 +16,7 @@
 // limitations under the License.
 
 use crate::SelfContainedCall;
+use codec::{Decode, Encode};
 use frame_support::weights::{DispatchInfo, GetDispatchInfo};
 use sp_runtime::{
 	traits::{
