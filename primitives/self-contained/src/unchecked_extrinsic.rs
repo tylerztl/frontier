@@ -1,4 +1,4 @@
-use crate::{CheckedExtrinsic, CheckedSignature, SelfContainedCall};
+use crate::{CheckedExtrinsic, CheckedSignature, IsSelfContained, SelfContainedCall};
 use codec::{Decode, Encode};
 use frame_support::{
 	traits::ExtrinsicCall,
@@ -20,6 +20,14 @@ use sp_runtime::{
 pub struct UncheckedExtrinsic<Address, Call, Signature, Extra: SignedExtension>(
 	pub sp_runtime::generic::UncheckedExtrinsic<Address, Call, Signature, Extra>,
 );
+
+impl<Address, Call: SelfContainedCall, Signature, Extra: SignedExtension> IsSelfContained
+	for UncheckedExtrinsic<Address, Call, Signature, Extra>
+{
+	fn is_self_contained(&self) -> bool {
+		self.0.function.is_self_contained()
+	}
+}
 
 #[cfg(feature = "std")]
 impl<Address, Call, Signature, Extra> parity_util_mem::MallocSizeOf

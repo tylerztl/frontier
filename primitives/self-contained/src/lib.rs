@@ -30,6 +30,12 @@ use sp_runtime::{
 	transaction_validity::{TransactionValidity, TransactionValidityError},
 };
 
+///
+pub trait IsSelfContained {
+	///
+	fn is_self_contained(&self) -> bool;
+}
+
 /// A call that has self-contained functions. A self-contained
 /// function is something that has its signature embedded in its call.
 pub trait SelfContainedCall: Dispatchable {
