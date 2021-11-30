@@ -6,10 +6,14 @@ use crate::cli::Sealing;
 use async_trait::async_trait;
 use fc_consensus::FrontierBlockImport;
 use fc_mapping_sync::{MappingSyncWorker, SyncStrategy};
-use fc_rpc::EthTask;
+use fc_rpc::{
+	EthTask, OverrideHandle, RuntimeApiStorageOverride, SchemaV1Override, SchemaV2Override,
+	StorageOverride,
+};
 use fc_rpc_core::types::FilterPool;
 use frontier_template_runtime::{self, opaque::Block, RuntimeApi, SLOT_DURATION};
 use futures::StreamExt;
+use pallet_ethereum::EthereumStorageSchema;
 use sc_cli::SubstrateCli;
 use sc_client_api::{BlockchainEvents, ExecutorProvider};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
@@ -172,7 +176,9 @@ pub fn new_partial(
 	let client = Arc::new(client);
 
 	let telemetry = telemetry.map(|(worker, telemetry)| {
-		task_manager.spawn_handle().spawn("telemetry", None, worker.run());
+		task_manager
+			.spawn_handle()
+			.spawn("telemetry", None, worker.run());
 		telemetry
 	});
 
@@ -371,6 +377,30 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 	let subscription_task_executor =
 		sc_rpc::SubscriptionTaskExecutor::new(task_manager.spawn_handle());
 
+	let mut overrides_map = BTreeMap::new();
+	overrides_map.insert(
+		EthereumStorageSchema::V1,
+		Box::new(SchemaV1Override::new(client.clone()))
+			as Box<dyn StorageOverride<_> + Send + Sync>,
+	);
+	overrides_map.insert(
+		EthereumStorageSchema::V2,
+		Box::new(SchemaV2Override::new(client.clone()))
+			as Box<dyn StorageOverride<_> + Send + Sync>,
+	);
+
+	let overrides = Arc::new(OverrideHandle {
+		schemas: overrides_map,
+		fallback: Box::new(RuntimeApiStorageOverride::new(client.clone())),
+	});
+
+	let block_data_cache = Arc::new(fc_rpc::EthBlockDataCache::new(
+		task_manager.spawn_handle(),
+		overrides.clone(),
+		50,
+		50,
+	));
+
 	let rpc_extensions_builder = {
 		let client = client.clone();
 		let pool = transaction_pool.clone();
@@ -392,6 +422,8 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 				backend: frontier_backend.clone(),
 				max_past_logs,
 				command_sink: Some(command_sink.clone()),
+				overrides: overrides.clone(),
+				block_data_cache: block_data_cache.clone(),
 			};
 
 			Ok(crate::rpc::create_full(
@@ -483,9 +515,11 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 							},
 						});
 					// we spawn the future on a background thread managed by service.
-					task_manager
-						.spawn_essential_handle()
-						.spawn_blocking("manual-seal", Some("block-authoring"), authorship_future);
+					task_manager.spawn_essential_handle().spawn_blocking(
+						"manual-seal",
+						Some("block-authoring"),
+						authorship_future,
+					);
 				}
 				Sealing::Instant => {
 					let authorship_future =
@@ -507,9 +541,11 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 							},
 						});
 					// we spawn the future on a background thread managed by service.
-					task_manager
-						.spawn_essential_handle()
-						.spawn_blocking("instant-seal", Some("block-authoring"), authorship_future);
+					task_manager.spawn_essential_handle().spawn_blocking(
+						"instant-seal",
+						Some("block-authoring"),
+						authorship_future,
+					);
 				}
 			};
 		}
@@ -571,9 +607,11 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 
 			// the AURA authoring task is considered essential, i.e. if it
 			// fails we take down the service with it.
-			task_manager
-				.spawn_essential_handle()
-				.spawn_blocking("aura", Some("block-authoring"), aura);
+			task_manager.spawn_essential_handle().spawn_blocking(
+				"aura",
+				Some("block-authoring"),
+				aura,
+			);
 		}
 
 		// if the node isn't actively participating in consensus then it doesn't
