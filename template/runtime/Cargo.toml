@@ -49,6 +49,7 @@ sp-std = { default-features = false, git = "https://github.com/purestake/substra
 sp-transaction-pool = { default-features = false, git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.12" }
 sp-version = { default-features = false, git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.12" }
 
+moonbeam-core-primitives = { default-features = false, path = "../../core-primitives" }
 fp-rpc = { default-features = false, path = "../../primitives/rpc" }
 fp-self-contained = { default-features = false, path = "../../primitives/self-contained" }
 

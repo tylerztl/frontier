@@ -16,6 +16,8 @@ members = [
 	"client/rpc",
 	"client/db",
 	"client/mapping-sync",
+	"core-primitives",
+	"primitives/account",
 	"primitives/consensus",
 	"primitives/evm",
 	"primitives/rpc",
